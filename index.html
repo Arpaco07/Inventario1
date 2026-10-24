@@ -1,0 +1,1190 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#0f0f0f">
+<title>Los Pares 84×88 — Inventario</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+:root{
+  --bg:#0f0f0f;--bg2:#1a1a1a;--bg3:#222;--border:#2a2a2a;
+  --accent:#f39c12;--gold:#d4af37;--red:#e74c3c;--green:#2ecc71;
+  --orange:#e67e22;--blue:#3498db;--text:#f0f0f0;--muted:#888;--dim:#555;
+}
+body{background:var(--bg);color:var(--text);font-family:Georgia,'Times New Roman',serif;min-height:100vh;font-size:15px}
+button{cursor:pointer;font-family:inherit}
+input,select,textarea{font-family:inherit}
+.hide{display:none!important}
+
+/* ---------- LOGIN ---------- */
+#pantallaLogin{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.caja-login{background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:36px 28px;width:100%;max-width:340px;text-align:center}
+.marca{font-weight:800;font-size:20px;color:var(--accent);letter-spacing:3px}
+.marca small{display:block;font-size:11px;color:var(--dim);letter-spacing:2px;margin-top:4px;font-weight:400}
+.puntos{display:flex;justify-content:center;gap:14px;margin:24px 0 8px}
+.punto{width:14px;height:14px;border-radius:50%;border:2px solid #444;background:var(--bg3);transition:all .15s}
+.punto.lleno{background:var(--accent);border-color:var(--accent)}
+.teclado{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0 12px}
+.tecla{background:#252525;border:1px solid #333;border-radius:12px;color:var(--text);font-size:20px;font-weight:700;padding:16px 0}
+.tecla:active{background:#333}
+.tecla-ok{background:var(--accent)!important;color:#111;border:none;font-weight:800}
+.tecla-del{background:#1e1e1e!important;color:var(--red)}
+#errorPin{color:var(--red);font-size:12px;min-height:18px;margin-bottom:4px}
+
+/* ---------- APP ---------- */
+#pantallaApp{display:none;padding-bottom:70px}
+header{background:#141414;border-bottom:1px solid #222;position:sticky;top:0;z-index:100}
+.h-fila{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;gap:10px}
+.pastilla{border-radius:20px;padding:4px 12px;font-size:11px;font-weight:700;white-space:nowrap}
+.btn-icono{background:none;border:1px solid #333;border-radius:8px;color:var(--muted);font-size:15px;padding:5px 11px}
+.pestanas{display:flex;overflow-x:auto;padding:0 10px;scrollbar-width:none}
+.pestanas::-webkit-scrollbar{display:none}
+.pestana{background:none;border:none;border-bottom:2px solid transparent;color:var(--dim);padding:10px 13px;font-size:13px;font-weight:600;white-space:nowrap}
+.pestana.on{color:var(--accent);border-bottom-color:var(--accent)}
+main{padding:14px;max-width:1000px;margin:0 auto}
+
+.barra-sup{display:flex;gap:9px;margin-bottom:10px;flex-wrap:wrap}
+.buscar{flex:1;min-width:150px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-size:14px;outline:none}
+.buscar:focus{border-color:var(--accent)}
+.btn-pri{background:var(--accent);color:#111;border:none;border-radius:8px;padding:10px 15px;font-weight:800;font-size:14px;white-space:nowrap}
+.btn-sec{background:#2c2c2c;color:#ccc;border:1px solid #444;border-radius:8px;padding:10px 14px;font-size:13px;white-space:nowrap}
+.chips{display:flex;gap:8px;overflow-x:auto;padding-bottom:6px;margin-bottom:8px;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:6px 13px;color:var(--muted);white-space:nowrap;font-size:12px;font-weight:600}
+.chip.on{background:var(--accent);border-color:var(--accent);color:#111}
+
+.aviso{background:#2d1800;border:1px solid var(--orange);border-radius:8px;padding:10px 14px;margin-bottom:12px;color:var(--accent);font-size:13px}
+.vacio{text-align:center;padding:50px 20px;color:var(--dim);display:flex;flex-direction:column;align-items:center;gap:12px;font-size:14px}
+
+.rejilla{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:12px}
+.tarjeta{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:14px;display:flex;flex-direction:column;gap:9px}
+.tarjeta.ojo{border-color:var(--orange)}
+.tarjeta.rojo{border-color:var(--red)}
+.t-tit{font-weight:700;font-size:14px;line-height:1.3}
+.t-sub{font-size:11px;color:var(--dim);margin-top:3px}
+.etq{border-radius:20px;padding:2px 9px;font-size:10px;font-weight:800;white-space:nowrap}
+.etq-ok{background:#0d2e1a;color:var(--green)}
+.etq-bajo{background:#2e1a00;color:var(--accent)}
+.etq-cero{background:#2e0000;color:var(--red)}
+.etq-ubi{background:#1a2a3a;color:#7ec8e3;font-size:10px;font-weight:700;border-radius:12px;padding:2px 8px}
+.cant{display:flex;align-items:baseline;gap:5px;flex-wrap:wrap}
+.cant b{font-size:26px;font-weight:800}
+.cant span{color:var(--muted);font-size:13px}
+.meta{display:flex;flex-wrap:wrap;gap:8px;font-size:11px;color:var(--dim)}
+.acciones{display:flex;gap:7px;margin-top:5px;flex-wrap:wrap}
+.btn-min{flex:1;min-width:72px;border-radius:8px;padding:8px 4px;font-size:12px;font-weight:700;border:1px solid}
+.b-ent{background:rgba(46,204,113,.14);color:var(--green);border-color:rgba(46,204,113,.35)}
+.b-tras{background:rgba(52,152,219,.14);color:var(--blue);border-color:rgba(52,152,219,.35)}
+.b-abrir{background:rgba(243,156,18,.14);color:var(--accent);border-color:rgba(243,156,18,.35)}
+.b-merma{background:rgba(231,76,60,.14);color:var(--red);border-color:rgba(231,76,60,.35)}
+.b-edit{background:#252525;color:#ccc;border-color:#333}
+
+.stats{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:11px;margin-bottom:18px}
+.stat{background:var(--bg2);border-radius:12px;padding:13px 15px;display:flex;align-items:center;gap:11px}
+.stat b{font-size:19px;font-weight:800;display:block}
+.stat small{font-size:11px;color:var(--muted)}
+.titulo-sec{font-weight:700;color:var(--accent);font-size:14px;margin:18px 0 10px}
+
+.lista{display:flex;flex-direction:column;gap:8px}
+.reng{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:11px 13px;display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+.reng-der{text-align:right;white-space:nowrap}
+
+/* ---------- MODAL ---------- */
+.capa{position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:200;display:none;align-items:flex-end;justify-content:center}
+.capa.abierta{display:flex}
+.modal{background:var(--bg2);border-radius:18px 18px 0 0;width:100%;max-width:520px;max-height:93vh;overflow:hidden;display:flex;flex-direction:column}
+.m-cab{display:flex;justify-content:space-between;align-items:center;padding:15px 18px;border-bottom:1px solid var(--border)}
+.m-tit{font-weight:700;font-size:15px;color:var(--accent)}
+.m-x{background:none;border:none;color:var(--dim);font-size:20px;padding:4px}
+.m-cuerpo{padding:15px 18px;overflow-y:auto;display:flex;flex-direction:column;gap:11px;flex:1}
+.m-pie{display:flex;gap:10px;padding:13px 18px;border-top:1px solid var(--border)}
+.lbl{font-size:11px;color:var(--muted);font-weight:700;display:block;margin-bottom:4px}
+.inp{width:100%;background:var(--bg3);border:1px solid #2a2a2a;border-radius:8px;padding:10px 12px;color:var(--text);font-size:15px;outline:none}
+.inp:focus{border-color:var(--accent)}
+.fila2{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+.btn-can{flex:1;background:#252525;border:1px solid #333;border-radius:8px;color:#ccc;padding:12px;font-size:14px}
+.btn-gua{flex:2;background:var(--accent);border:none;border-radius:8px;color:#111;padding:12px;font-size:14px;font-weight:800}
+.caja-info{background:#111;border:1px solid #2a2a2a;border-radius:8px;padding:11px;font-size:12px;color:#777;line-height:1.6}
+.caja-info b{color:#bbb}
+.resultado{background:#0d2e1a;border:1px solid var(--green);border-radius:8px;padding:12px;font-size:14px;color:var(--green);text-align:center}
+.resultado b{font-size:22px;display:block;margin-bottom:3px}
+
+/* ---------- VARIOS ---------- */
+.switch{display:flex;align-items:center;gap:10px;background:var(--bg3);border:1px solid #2a2a2a;border-radius:8px;padding:10px 12px}
+.switch input{width:20px;height:20px;accent-color:var(--accent)}
+.switch label{font-size:13px;color:#ccc}
+.lectura{background:#0d2e1a;border:1px solid rgba(46,204,113,.4);border-radius:8px;padding:8px 10px;font-size:13px;color:var(--green);margin-top:6px}
+.lectura b{font-size:17px}
+.lectura.malo{background:#2e1a00;border-color:var(--orange);color:var(--accent)}
+.b-baja{background:rgba(231,76,60,.14);color:var(--red);border-color:rgba(231,76,60,.35)}
+.fila-ubi{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;align-items:end;margin-bottom:9px}
+.fila-ubi.sinml{grid-template-columns:1fr 1fr}
+.ubi-nom{font-size:12px;font-weight:700;color:var(--accent);margin:10px 0 5px}
+.inp-chico{width:100%;background:var(--bg3);border:1px solid #2a2a2a;border-radius:8px;padding:9px 10px;color:var(--text);font-size:15px;outline:none}
+.inp-chico:focus{border-color:var(--accent)}
+.cargando{position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:500;display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px}
+.cargando.ver{display:flex}
+.rueda{width:38px;height:38px;border:3px solid #333;border-top-color:var(--accent);border-radius:50%;animation:giro .8s linear infinite}
+@keyframes giro{to{transform:rotate(360deg)}}
+@keyframes temblor{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+.aviso-flot{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);color:#fff;padding:12px 22px;border-radius:10px;font-weight:700;z-index:300;font-size:13px;opacity:0;transition:opacity .3s;pointer-events:none;max-width:90vw;text-align:center}
+.aviso-flot.ver{opacity:1}
+.tabla{width:100%;border-collapse:collapse;font-size:13px}
+.tabla th{background:#252525;color:var(--accent);text-align:left;padding:8px 10px;font-size:11px;text-transform:uppercase}
+.tabla td{padding:8px 10px;border-bottom:1px solid #222}
+.tabla tr:last-child td{border-bottom:none}
+.neg{color:var(--red);font-weight:700}
+.pos{color:var(--green);font-weight:700}
+</style>
+</head>
+<body>
+
+<!-- ========================= LOGIN ========================= -->
+<div id="pantallaLogin">
+  <div class="caja-login" id="cajaLogin">
+    <div class="marca">LOS PARES<small>INVENTARIO 84×88</small></div>
+    <div class="puntos">
+      <div class="punto" id="p0"></div><div class="punto" id="p1"></div>
+      <div class="punto" id="p2"></div><div class="punto" id="p3"></div>
+    </div>
+    <div id="errorPin"></div>
+    <div class="teclado">
+      <button class="tecla" onclick="tecla('1')">1</button>
+      <button class="tecla" onclick="tecla('2')">2</button>
+      <button class="tecla" onclick="tecla('3')">3</button>
+      <button class="tecla" onclick="tecla('4')">4</button>
+      <button class="tecla" onclick="tecla('5')">5</button>
+      <button class="tecla" onclick="tecla('6')">6</button>
+      <button class="tecla" onclick="tecla('7')">7</button>
+      <button class="tecla" onclick="tecla('8')">8</button>
+      <button class="tecla" onclick="tecla('9')">9</button>
+      <button class="tecla tecla-del" onclick="tecla('DEL')">⌫</button>
+      <button class="tecla" onclick="tecla('0')">0</button>
+      <button class="tecla tecla-ok" onclick="tecla('OK')">OK</button>
+    </div>
+    <div style="font-size:11px;color:#555">Escribe tu PIN</div>
+  </div>
+</div>
+
+<!-- ========================= APP ========================= -->
+<div id="pantallaApp">
+  <header>
+    <div class="h-fila">
+      <div>
+        <div class="marca" style="font-size:15px;letter-spacing:1px">LOS PARES<small style="letter-spacing:1px">Inventario</small></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <div id="pastillaUsr" class="pastilla"></div>
+        <button class="btn-icono" onclick="refrescar()" title="Actualizar">↻</button>
+        <button class="btn-icono" onclick="salir()" title="Salir">⏻</button>
+      </div>
+    </div>
+    <div class="pestanas">
+      <button class="pestana on" data-tab="existencias" onclick="irA('existencias',this)">📦 Existencias</button>
+      <button class="pestana" data-tab="catalogo"   onclick="irA('catalogo',this)">📋 Catálogo</button>
+      <button class="pestana" data-tab="auditoria"  onclick="irA('auditoria',this)">⚖️ Auditoría</button>
+      <button class="pestana" data-tab="movimientos" onclick="irA('movimientos',this)">🔄 Movimientos</button>
+      <button class="pestana" data-tab="resumen"    onclick="irA('resumen',this)">📊 Resumen</button>
+    </div>
+  </header>
+  <main id="contenido"></main>
+</div>
+
+<!-- ========================= MODALES ========================= -->
+<div class="capa" id="mProducto" onclick="cerrar('mProducto')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="m-cab"><div class="m-tit" id="tituloProducto">Nuevo producto</div>
+      <button class="m-x" onclick="cerrar('mProducto')">✕</button></div>
+    <div class="m-cuerpo">
+      <input type="hidden" id="fId">
+      <div><label class="lbl">Nombre *</label><input class="inp" id="fNombre" placeholder="Don Julio Blanco 700 ml"></div>
+      <div><label class="lbl">Categoría</label><select class="inp" id="fCat"></select></div>
+      <div>
+        <label class="lbl">¿Cómo lo cuentas?</label>
+        <select class="inp" id="fUnidad" onchange="alternarBotella()">
+          <option value="PZA">Por pieza — paquetes, cajas, latas, botes, rejas</option>
+          <option value="ML">Por mililitro — licor, vino, jarabes (se sirve en fracciones)</option>
+          <option value="G">Por gramo — solo si de verdad lo pesas</option>
+        </select>
+      </div>
+      <div class="fila2">
+        <div><label class="lbl">Presentación</label><input class="inp" id="fPres" placeholder="Botella 700 ml"></div>
+        <div><label class="lbl">Proveedor</label><input class="inp" id="fProveedor"></div>
+      </div>
+      <div class="fila2">
+        <div><label class="lbl">Contenido (en unidad base)</label><input class="inp" type="number" id="fContenido" value="1" step="0.001"></div>
+        <div><label class="lbl">Costo de la presentación $</label><input class="inp" type="number" id="fCosto" value="0" step="0.01"></div>
+      </div>
+      <div id="bloqueBotella">
+        <div class="caja-info" style="margin-bottom:11px">🍾 <b>Solo botellas.</b> Con la capacidad y el peso lleno, el sistema calcula la tara y la báscula funciona sola.</div>
+        <div id="avisoDensidad" class="aviso hide" style="margin-bottom:11px">⚠️ Al editar, vuelve a elegir el <b>tipo de líquido</b>: es obligatorio para guardar.</div>
+        <div class="fila2">
+          <div><label class="lbl">Capacidad ml</label><input class="inp" type="number" id="fCapacidad" placeholder="700" step="0.01"></div>
+          <div><label class="lbl">Tipo de líquido</label><select class="inp" id="fDensidad"></select></div>
+        </div>
+        <div class="fila2" style="margin-top:11px">
+          <div><label class="lbl">Peso llena CON tapa (g)</label><input class="inp" type="number" id="fPesoLleno" placeholder="1480" step="0.01"></div>
+          <div><label class="lbl">Peso vacía (g) — opcional</label><input class="inp" type="number" id="fPesoVacio" placeholder="se calcula" step="0.01"></div>
+        </div>
+      </div>
+      <div id="bloquePreparado" class="hide">
+        <div class="caja-info" style="margin-bottom:11px">🍸 <b>Preparado.</b> Cuánto rinde un lote y cuántos días dura ya hecho.</div>
+        <div class="fila2">
+          <div><label class="lbl">Rinde por lote</label><input class="inp" type="number" id="fRendimiento" placeholder="1000" step="0.001"></div>
+          <div><label class="lbl">Días de caducidad</label><input class="inp" type="number" id="fCaducidad" placeholder="14"></div>
+        </div>
+      </div>
+      <div id="bloqueStock">
+        <div class="caja-info" style="margin-bottom:11px">📍 <b>¿Cuánto hay hoy y dónde?</b>
+          Opcional, pero si lo llenas el producto ya nace con existencia y no hay que
+          registrarle una entrada aparte. Queda asentado como <b>Alta inicial</b> en Movimientos.</div>
+        <div id="filasUbic"></div>
+      </div>
+      <div><label class="lbl">Notas</label><textarea class="inp" id="fNotas" rows="2" style="resize:vertical"></textarea></div>
+      <div class="switch">
+        <input type="checkbox" id="fActivo" checked>
+        <label for="fActivo">Producto activo (desmarca para darlo de baja)</label>
+      </div>
+    </div>
+    <div class="m-pie">
+      <button class="btn-can" onclick="cerrar('mProducto')">Cancelar</button>
+      <button class="btn-gua" id="btnGuardarProd" onclick="guardarProducto()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<div class="capa" id="mAccion" onclick="cerrar('mAccion')">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="m-cab"><div class="m-tit" id="tituloAccion"></div>
+      <button class="m-x" onclick="cerrar('mAccion')">✕</button></div>
+    <div class="m-cuerpo" id="cuerpoAccion"></div>
+    <div class="m-pie">
+      <button class="btn-can" onclick="cerrar('mAccion')">Cancelar</button>
+      <button class="btn-gua" id="btnAccion"></button>
+    </div>
+  </div>
+</div>
+
+<div class="cargando" id="cargando"><div class="rueda"></div>
+  <div style="color:#888;font-size:13px" id="txtCargando">Cargando...</div></div>
+<div class="aviso-flot" id="avisoFlot"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+/* ======================================================================
+   CONFIGURACION — ya viene lista, no hay que tocar nada
+   ====================================================================== */
+const SUPA_URL  = 'https://nkpzjnfazuqlbvctyqzg.supabase.co';
+const SUPA_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rcHpqbmZhenVxbGJ2Y3R5cXpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzMDI0MDQsImV4cCI6MjEwMzg3ODQwNH0.qdzwLK7v92SW5OoZN5RxeMxs5UHm87P_ECEB90UnHIQ';
+const sb = supabase.createClient(SUPA_URL, SUPA_KEY);
+
+/* ======================================================================
+   ESTADO
+   ====================================================================== */
+let TOKEN = sessionStorage.getItem('inv_token') || null;
+let YO = JSON.parse(sessionStorage.getItem('inv_yo') || 'null');
+let CATS = [], UBIS = [], DENS = [];
+let catalogo = [], existencias = [], movimientos = [], alertas = [];
+let tab = 'existencias';
+let fUbi = 'TODAS', fCat = 'TODAS', busca = '';
+let auditoriaId = null, auditoriaUbi = null;
+let verBajas = false;
+let tDebounce = null;
+
+const esAdmin     = () => YO && YO.nivel === 'ADMIN';
+const puedeMover  = () => YO && (YO.nivel === 'ADMIN' || YO.nivel === 'ENCARGADO');
+
+/* ======================================================================
+   LLAMADAS
+   ====================================================================== */
+async function rpc(nombre, args = {}) {
+  const { data, error } = await sb.rpc(nombre, { p_token: TOKEN, ...args });
+  if (error) {
+    if (/Sesi[oó]n no v[aá]lida|expirada/i.test(error.message)) {
+      cerrarSesionLocal();
+      throw new Error('Tu sesión expiró. Vuelve a entrar con tu PIN.');
+    }
+    throw new Error(error.message);
+  }
+  return data;
+}
+
+/* ======================================================================
+   LOGIN
+   ====================================================================== */
+let pin = '';
+function tecla(k) {
+  if (k === 'DEL') { pin = pin.slice(0, -1); pintarPuntos(); return; }
+  if (k === 'OK')  { if (pin.length >= 4) entrar(); return; }
+  if (pin.length >= 4) return;
+  pin += k; pintarPuntos();
+  if (pin.length === 4) setTimeout(entrar, 120);
+}
+function pintarPuntos() {
+  for (let i = 0; i < 4; i++)
+    document.getElementById('p' + i).classList.toggle('lleno', i < pin.length);
+}
+async function entrar() {
+  verCargando('Entrando...');
+  try {
+    const { data, error } = await sb.rpc('inv_login', { p_pin: pin });
+    if (error) throw error;
+    if (!data || !data.length) throw new Error('PIN incorrecto');
+    const s = data[0];
+    TOKEN = s.token;
+    YO = { nombre: s.nombre, rol: s.rol, nivel: s.nivel, id: s.empleado_id };
+    sessionStorage.setItem('inv_token', TOKEN);
+    sessionStorage.setItem('inv_yo', JSON.stringify(YO));
+    pin = ''; pintarPuntos();
+    ocultarCargando();
+    await arrancarApp();
+  } catch (e) {
+    ocultarCargando();
+    pin = ''; pintarPuntos();
+    document.getElementById('errorPin').textContent = limpiarError(e.message);
+    const c = document.getElementById('cajaLogin');
+    c.style.animation = 'temblor .4s';
+    setTimeout(() => { c.style.animation = ''; document.getElementById('errorPin').textContent = ''; }, 2600);
+  }
+}
+function limpiarError(m) {
+  if (!m) return 'Error';
+  return m.replace(/^.*?(PIN incorrecto|Demasiados intentos[^.]*\.).*$/i, '$1')
+          .replace(/\s+/g, ' ').trim().slice(0, 120) || m.slice(0, 120);
+}
+function cerrarSesionLocal() {
+  TOKEN = null; YO = null;
+  sessionStorage.removeItem('inv_token');
+  sessionStorage.removeItem('inv_yo');
+  document.getElementById('pantallaApp').style.display = 'none';
+  document.getElementById('pantallaLogin').style.display = 'flex';
+}
+async function salir() {
+  if (TOKEN) { try { await sb.rpc('inv_salir', { p_token: TOKEN }); } catch (e) {} }
+  cerrarSesionLocal();
+}
+
+/* ======================================================================
+   ARRANQUE
+   ====================================================================== */
+window.onload = async () => {
+  if (TOKEN && YO) {
+    try { await arrancarApp(); return; } catch (e) { cerrarSesionLocal(); }
+  }
+  document.getElementById('pantallaLogin').style.display = 'flex';
+};
+
+async function arrancarApp() {
+  verCargando('Cargando inventario...');
+  try {
+    const info = await rpc('inv_app_arranque');
+    CATS = info.categorias || []; UBIS = info.ubicaciones || []; DENS = info.densidades || [];
+    YO.nivel = info.nivel; YO.nombre = info.nombre;
+    sessionStorage.setItem('inv_yo', JSON.stringify(YO));
+
+    document.getElementById('pantallaLogin').style.display = 'none';
+    document.getElementById('pantallaApp').style.display = 'block';
+
+    const p = document.getElementById('pastillaUsr');
+    const col = esAdmin() ? 'var(--accent)' : (puedeMover() ? 'var(--blue)' : 'var(--muted)');
+    const ic  = esAdmin() ? '👑' : (puedeMover() ? '🔑' : '👤');
+    p.textContent = ic + ' ' + YO.nombre.split(' ')[0];
+    p.style.background = 'rgba(255,255,255,.07)';
+    p.style.color = col;
+
+    llenarSelects();
+    await cargarDatos();
+    pintar();
+  } catch (e) {
+    ocultarCargando();
+    avisar(e.message, true);
+    throw e;
+  }
+  ocultarCargando();
+}
+
+function filasUbicaciones() {
+  const z = document.getElementById('filasUbic');
+  if (!z) return;
+  z.innerHTML = UBIS.map(u => `
+    <div class="ubi-nom">${u.icono || ''} ${esc(u.nombre)}</div>
+    <div class="fila-ubi" data-ubi="${u.clave}">
+      <div><label class="lbl" id="lbl_${u.clave}">Piezas</label>
+        <input class="inp-chico" type="number" id="st_${u.clave}_pz" placeholder="0" min="0"></div>
+      <div class="soloMl"><label class="lbl">Abierta (ml)</label>
+        <input class="inp-chico" type="number" id="st_${u.clave}_ml" placeholder="0" step="0.1"></div>
+      <div><label class="lbl">Mínimo</label>
+        <input class="inp-chico" type="number" id="st_${u.clave}_min" placeholder="0" min="0" step="0.001"></div>
+    </div>`).join('');
+}
+
+function limpiarStockInicial() {
+  UBIS.forEach(u => {
+    ['pz', 'ml', 'min'].forEach(k => {
+      const el = document.getElementById('st_' + u.clave + '_' + k);
+      if (el) el.value = '';
+    });
+  });
+}
+
+function llenarSelects() {
+  const sc = document.getElementById('fCat');
+  sc.innerHTML = CATS.map(c => `<option value="${c.clave}">${c.icono || ''} ${esc(c.nombre)}</option>`).join('');
+  const sd = document.getElementById('fDensidad');
+  sd.innerHTML = '<option value="">— sin definir —</option>' +
+    DENS.map(d => `<option value="${d.clase}">${esc(d.nombre)}</option>`).join('');
+}
+
+async function cargarDatos() {
+  const [cat, exi, ale] = await Promise.all([
+    rpc('inv_catalogo'), rpc('inv_existencias'), rpc('inv_app_alertas')
+  ]);
+  catalogo = cat || []; existencias = exi || []; alertas = ale || [];
+}
+async function refrescar() {
+  verCargando('Actualizando...');
+  try { await cargarDatos(); if (tab === 'movimientos') await cargarMovs(); pintar(); avisar('Actualizado ✓'); }
+  catch (e) { avisar(e.message, true); }
+  ocultarCargando();
+}
+async function cargarMovs() {
+  movimientos = await rpc('inv_app_movimientos', { p_limite: 120 }) || [];
+}
+
+/* ======================================================================
+   NAVEGACION
+   ====================================================================== */
+async function irA(t, el) {
+  tab = t;
+  document.querySelectorAll('.pestana').forEach(p => p.classList.remove('on'));
+  if (el) el.classList.add('on');
+  if (t === 'movimientos') { verCargando('...'); try { await cargarMovs(); } catch(e){ avisar(e.message,true); } ocultarCargando(); }
+  pintar();
+}
+
+function pintar() {
+  const c = document.getElementById('contenido');
+  if (tab === 'existencias')      c.innerHTML = vistaExistencias();
+  else if (tab === 'catalogo')    c.innerHTML = vistaCatalogo();
+  else if (tab === 'auditoria')   c.innerHTML = vistaAuditoria();
+  else if (tab === 'movimientos') c.innerHTML = vistaMovimientos();
+  else if (tab === 'resumen')     c.innerHTML = vistaResumen();
+}
+
+/* ======================================================================
+   VISTA: EXISTENCIAS
+   ====================================================================== */
+function vistaExistencias() {
+  const bajos = existencias.filter(e => e.estado !== 'OK').length;
+  return `
+    <div class="barra-sup">
+      <input class="buscar" placeholder="🔍 Buscar producto..." value="${esc(busca)}"
+             oninput="busca=this.value;document.getElementById('zonaExi').innerHTML=listaExistencias()">
+      ${puedeMover() ? '<button class="btn-sec" onclick="abrirTraspaso()">↔ Traspaso</button>' : ''}
+    </div>
+    <div class="chips">
+      <button class="chip${fUbi==='TODAS'?' on':''}" onclick="fUbi='TODAS';pintar()">🗂 Todas</button>
+      ${UBIS.map(u => `<button class="chip${fUbi===u.clave?' on':''}" onclick="fUbi='${u.clave}';pintar()">${u.icono||''} ${esc(u.nombre)}</button>`).join('')}
+    </div>
+    <div class="chips">
+      <button class="chip${fCat==='TODAS'?' on':''}" onclick="fCat='TODAS';pintar()">Todas</button>
+      ${CATS.map(c => `<button class="chip${fCat===c.clave?' on':''}" onclick="fCat='${c.clave}';pintar()">${c.icono||''} ${esc(c.nombre)}</button>`).join('')}
+    </div>
+    ${bajos ? `<div class="aviso">⚠️ <b>${bajos}</b> producto${bajos>1?'s':''} por debajo del mínimo</div>` : ''}
+    <div id="zonaExi">${listaExistencias()}</div>`;
+}
+
+function listaExistencias() {
+  const f = existencias
+    .filter(e => fUbi === 'TODAS' || e.ubicacion === fUbi)
+    .filter(e => fCat === 'TODAS' || e.categoria === fCat)
+    .filter(e => (e.nombre || '').toLowerCase().includes(busca.toLowerCase()));
+  if (!f.length) return `<div class="vacio"><div style="font-size:40px">📦</div>
+    <div>Nada por aquí todavía</div>
+    ${esAdmin() ? '<button class="btn-pri" onclick="abrirProducto()">＋ Dar de alta el primer producto</button>' : ''}</div>`;
+  return `<div class="rejilla">${f.map(tarjetaExistencia).join('')}</div>`;
+}
+
+function tarjetaExistencia(e) {
+  const etq = e.estado === 'SIN_STOCK' ? '<span class="etq etq-cero">Sin stock</span>'
+            : e.estado === 'BAJO'      ? '<span class="etq etq-bajo">Bajo</span>'
+            :                            '<span class="etq etq-ok">OK</span>';
+  const clase = e.estado === 'SIN_STOCK' ? ' rojo' : e.estado === 'BAJO' ? ' ojo' : '';
+  const ub = UBIS.find(u => u.clave === e.ubicacion) || {};
+  const ca = CATS.find(c => c.clave === e.categoria) || {};
+  return `<div class="tarjeta${clase}">
+    <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
+      <div>
+        <div class="t-tit">${ca.icono || ''} ${esc(e.nombre)}</div>
+        <div class="t-sub"><span class="etq-ubi">${ub.icono||''} ${esc(ub.nombre||e.ubicacion)}</span></div>
+      </div>${etq}
+    </div>
+    <div class="cant">
+      ${e.piezas_cerradas > 0 ? `<b style="color:var(--green)">${e.piezas_cerradas}</b><span>${palabraEnteros(e.unidad_base, e.piezas_cerradas)}</span>` : ''}
+      ${Number(e.abierto_base) > 0 ? `<b style="color:var(--accent)">${num(e.abierto_base)}</b><span>${palabraSueltos(e.unidad_base)}</span>` : ''}
+      ${(!e.piezas_cerradas && !Number(e.abierto_base)) ? `<b style="color:var(--red)">0</b>` : ''}
+    </div>
+    <div class="meta">
+      <span>Total: ${num(e.total_base)} ${e.unidad_base.toLowerCase()}</span>
+      ${Number(e.minimo) > 0 ? `<span>· mín ${num(e.minimo)}</span>` : ''}
+      ${e.valor_pesos != null ? `<span style="margin-left:auto;color:var(--green)">$${num(e.valor_pesos)}</span>` : ''}
+    </div>
+    ${puedeMover() ? `<div class="acciones">
+      <button class="btn-min b-ent"   onclick="abrirEntrada(${e.insumo_id},'${e.ubicacion}')">➕ Entrada</button>
+      <button class="btn-min b-abrir" onclick="abrirBotella(${e.insumo_id},'${e.ubicacion}')">🍾 Abrir</button>
+      <button class="btn-min b-merma" onclick="abrirMerma(${e.insumo_id},'${e.ubicacion}')">🗑 Merma</button>
+    </div>` : `<div class="acciones">
+      <button class="btn-min b-merma" onclick="abrirMerma(${e.insumo_id},'${e.ubicacion}')">🗑 Reportar merma</button>
+    </div>`}
+  </div>`;
+}
+
+/* ======================================================================
+   VISTA: CATALOGO
+   ====================================================================== */
+function vistaCatalogo() {
+  if (!esAdmin()) return `<div class="vacio"><div style="font-size:40px">🔒</div>
+    <div>El catálogo solo lo edita un administrador.</div></div>`;
+  const faltan = catalogo.filter(i => i.activo && i.falta_peso_lleno).length;
+  const bajas  = catalogo.filter(i => !i.activo).length;
+  return `
+    <div class="barra-sup">
+      <input class="buscar" placeholder="🔍 Buscar..." value="${esc(busca)}"
+             oninput="busca=this.value;document.getElementById('zonaCat').innerHTML=listaCatalogo()">
+      <button class="btn-pri" onclick="abrirProducto()">＋ Producto</button>
+    </div>
+    <div class="chips">
+      <button class="chip${fCat==='TODAS'?' on':''}" onclick="fCat='TODAS';pintar()">Todas</button>
+      ${CATS.map(c => `<button class="chip${fCat===c.clave?' on':''}" onclick="fCat='${c.clave}';pintar()">${c.icono||''} ${esc(c.nombre)}</button>`).join('')}
+      ${bajas ? `<button class="chip${verBajas?' on':''}" onclick="verBajas=!verBajas;pintar()">🚫 Ver bajas (${bajas})</button>` : ''}
+    </div>
+    ${faltan ? `<div class="aviso">⚖️ <b>${faltan}</b> botella${faltan>1?'s':''} sin peso lleno. Sin ese dato la báscula no puede medirlas.</div>` : ''}
+    <div id="zonaCat">${listaCatalogo()}</div>`;
+}
+
+function listaCatalogo() {
+  const f = catalogo
+    .filter(i => verBajas ? !i.activo : i.activo)
+    .filter(i => fCat === 'TODAS' || i.categoria === fCat)
+    .filter(i => (i.nombre||'').toLowerCase().includes(busca.toLowerCase()));
+  if (!f.length) return `<div class="vacio"><div style="font-size:40px">📋</div>
+    <div>${verBajas ? 'No hay productos dados de baja' : 'Sin productos'}</div></div>`;
+  return `<div class="rejilla">${f.map(tarjetaCatalogo).join('')}</div>`;
+}
+
+function tarjetaCatalogo(i) {
+  const ca = CATS.find(c => c.clave === i.categoria) || {};
+  return `<div class="tarjeta${i.falta_peso_lleno ? ' ojo' : ''}">
+    <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start">
+      <div>
+        <div class="t-tit">${ca.icono||''} ${esc(i.nombre)}</div>
+        <div class="t-sub">${esc(i.compra_descripcion || '—')} · se gasta en ${i.unidad_base.toLowerCase()}</div>
+      </div>
+      ${!i.activo ? '<span class="etq etq-cero">Baja</span>' : ''}
+    </div>
+    <div class="meta">
+      ${i.costo_unidad_base != null ? `<span>$${Number(i.costo_unidad_base).toFixed(4)}/${i.unidad_base.toLowerCase()}</span>` : ''}
+      ${i.costo_envase != null ? `<span>· envase $${num(i.costo_envase)}</span>` : ''}
+    </div>
+    ${i.capacidad_ml ? `<div class="meta">
+      <span>🍾 ${num(i.capacidad_ml)} ml</span>
+      ${i.tara_g != null ? `<span>· tara ${num(i.tara_g)} g${i.tara_estimada ? ' (estimada)' : ''}</span>`
+                         : '<span style="color:var(--orange)">· falta peso lleno</span>'}
+    </div>` : ''}
+    ${i.proveedor ? `<div class="meta"><span>🏪 ${esc(i.proveedor)}</span></div>` : ''}
+    <div class="acciones">
+      <button class="btn-min b-edit" onclick="abrirProducto(${i.id})">✏️ Editar</button>
+      <button class="btn-min b-edit" onclick="abrirMinimo(${i.id})">🎯 Mínimos</button>
+      ${i.categoria === 'PREPARADO' ? `<button class="btn-min b-abrir" onclick="abrirProducir(${i.id})">🍸 Producir</button>` : ''}
+      ${i.activo ? `<button class="btn-min b-baja" onclick="darDeBaja(${i.id})">🚫 Dar de baja</button>`
+                 : `<button class="btn-min b-ent" onclick="reactivar(${i.id})">↩️ Reactivar</button>`}
+    </div>
+  </div>`;
+}
+
+/* ======================================================================
+   VISTA: AUDITORIA
+   ====================================================================== */
+function vistaAuditoria() {
+  if (!puedeMover()) return `<div class="vacio"><div style="font-size:40px">🔒</div>
+    <div>La auditoría la hace un encargado o un administrador.</div></div>`;
+  if (!auditoriaId) {
+    return `<div class="caja-info" style="margin-bottom:14px">
+        ⚖️ <b>Conteo a ciegas.</b> Vas a capturar lo que de verdad hay, sin ver lo que el sistema
+        dice que debería haber. Así el conteo no se contamina.
+        ${esAdmin() ? 'Al cerrar, tú ves la varianza.' : 'Al terminar, un administrador cierra y revisa.'}
+      </div>
+      <div class="titulo-sec">¿Dónde vas a contar?</div>
+      <div class="rejilla">
+        ${UBIS.map(u => `<div class="tarjeta">
+          <div class="t-tit">${u.icono||''} ${esc(u.nombre)}</div>
+          <button class="btn-pri" style="margin-top:8px" onclick="iniciarAuditoria('${u.clave}')">Empezar conteo</button>
+        </div>`).join('')}
+      </div>`;
+  }
+  const ub = UBIS.find(u => u.clave === auditoriaUbi) || {};
+  const items = catalogo.filter(i => i.activo);
+  return `
+    <div class="aviso">⚖️ Contando en <b>${ub.icono||''} ${esc(ub.nombre||auditoriaUbi)}</b> — auditoría #${auditoriaId}</div>
+    <div class="barra-sup">
+      <input class="buscar" placeholder="🔍 Buscar producto..." oninput="filtrarAuditoria()" id="buscaAud">
+      ${esAdmin() ? `<button class="btn-pri" onclick="cerrarAuditoria()">Cerrar y ver varianza</button>`
+                  : `<button class="btn-sec" onclick="auditoriaId=null;pintar()">Terminé</button>`}
+    </div>
+    <div class="chips" id="chipsAud">
+      <button class="chip on" data-cat="TODAS" onclick="chipAuditoria(this)">Todas</button>
+      ${CATS.map(c => `<button class="chip" data-cat="${c.clave}" onclick="chipAuditoria(this)">${c.icono||''} ${esc(c.nombre)}</button>`).join('')}
+    </div>
+    <div class="caja-info" style="margin-bottom:10px">
+      Aparece <b>todo el catálogo</b>, tenga o no existencia registrada: si una botella está
+      aquí y el sistema no la tenía, así es como se descubre. Lo que no cuentes, no se toca.
+      Cada dato se guarda solo al salir del campo.
+    </div>
+    <div id="zonaAud">${!items.length ? '<div class="vacio">El catálogo está vacío</div>' :
+      `<div class="rejilla">${items.map(i => `<div class="tarjeta" data-n="${esc((i.nombre||'').toLowerCase())}" data-c="${esc(i.categoria)}">
+          <div class="t-tit">${esc(i.nombre)}</div>
+          <div class="t-sub">${esc(i.compra_descripcion || '—')}</div>
+          <div><label class="lbl">${i.unidad_base === 'ML' ? 'Botellas cerradas que ves' : 'Piezas que ves'}</label>
+            <input class="inp" type="number" id="ac_${i.id}" placeholder="0" min="0"
+                   onchange="capturarConteo(${i.id})"></div>
+          ${i.capacidad_ml ? `<div><label class="lbl">Peso de la abierta (g)</label>
+            <input class="inp" type="number" id="ap_${i.id}" placeholder="en la báscula" step="0.1"
+                   oninput="previsualizarMl(${i.id})" onchange="capturarConteo(${i.id})"></div>`
+            : `<div><label class="lbl">Sueltos (${(i.unidad_base||'').toLowerCase()})</label>
+            <input class="inp" type="number" id="as_${i.id}" placeholder="0" step="0.001"
+                   onchange="capturarConteo(${i.id})"></div>`}
+          <div id="prev_${i.id}"></div>
+          <button class="btn-min b-ent" onclick="capturarConteo(${i.id})">Guardar conteo</button>
+          <div id="res_${i.id}" style="font-size:12px;color:var(--muted)"></div>
+        </div>`).join('')}</div>`}</div>`;
+}
+
+/* El filtrado de la auditoria ESCONDE tarjetas, nunca las vuelve a dibujar:
+   si se redibujaran se borraria lo que el empleado ya tecleo y no ha guardado. */
+function filtrarAuditoria() {
+  const txt = (document.getElementById('buscaAud')?.value || '').toLowerCase();
+  const chip = document.querySelector('#chipsAud .chip.on');
+  const cat = chip ? chip.getAttribute('data-cat') : 'TODAS';
+  let visibles = 0;
+  document.querySelectorAll('#zonaAud .tarjeta').forEach(t => {
+    const okCat = (cat === 'TODAS' || t.getAttribute('data-c') === cat);
+    const okTxt = t.getAttribute('data-n').includes(txt);
+    const ver = okCat && okTxt;
+    t.style.display = ver ? '' : 'none';
+    if (ver) visibles++;
+  });
+  return visibles;
+}
+function chipAuditoria(el) {
+  document.querySelectorAll('#chipsAud .chip').forEach(c => c.classList.remove('on'));
+  el.classList.add('on');
+  filtrarAuditoria();
+}
+
+/* Peso -> mililitros, en vivo, mientras la botella esta en la bascula. */
+function previsualizarMl(id) {
+  clearTimeout(tDebounce);
+  const campo = document.getElementById('ap_' + id);
+  const caja  = document.getElementById('prev_' + id);
+  if (!campo || !caja) return;
+  if (!campo.value) { caja.innerHTML = ''; return; }
+  tDebounce = setTimeout(async () => {
+    try {
+      const r = await rpc('inv_app_ml_por_peso', { p_insumo_id: id, p_peso_g: Number(campo.value) });
+      if (!r || r.ok === false) {
+        caja.innerHTML = `<div class="lectura malo">${esc(r && r.mensaje ? r.mensaje : 'No se pudo calcular')}</div>`;
+        return;
+      }
+      caja.innerHTML = `<div class="lectura"><b>${num(r.ml)} ml</b>` +
+        (r.porcentaje != null ? ` · ${num(r.porcentaje)}% de la botella` : '') +
+        (r.tragos_45 != null ? ` · ${num(r.tragos_45)} tragos de 45 ml` : '') + `</div>`;
+    } catch (e) {
+      caja.innerHTML = `<div class="lectura malo">${esc(e.message)}</div>`;
+    }
+  }, 500);
+}
+
+async function iniciarAuditoria(ubi) {
+  verCargando('Abriendo auditoría...');
+  try {
+    auditoriaId = await rpc('inv_app_auditoria_abrir', { p_ubicacion: ubi, p_tipo: 'PARCIAL' });
+    auditoriaUbi = ubi; busca = '';
+    avisar('Auditoría abierta ✓ — aparece todo el catálogo');
+  } catch (e) { avisar(e.message, true); }
+  ocultarCargando(); pintar();
+}
+
+async function capturarConteo(id) {
+  if (!auditoriaId) return;
+  const ce = document.getElementById('ac_' + id);
+  const pe = document.getElementById('ap_' + id);
+  const su = document.getElementById('as_' + id);
+  // Si no escribio absolutamente nada, no se registra: lo no contado no se toca.
+  const vacio = (!ce || ce.value === '') && (!pe || pe.value === '') && (!su || su.value === '');
+  if (vacio) return;
+  const pz = parseInt(ce && ce.value ? ce.value : '0') || 0;
+  const args = { p_auditoria_id: auditoriaId, p_insumo_id: id, p_piezas_cerradas: pz,
+                 p_peso_g: pe && pe.value ? Number(pe.value) : null,
+                 p_cantidad_suelta: su && su.value ? Number(su.value) : null };
+  const d = document.getElementById('res_' + id);
+  try {
+    const r = await rpc('inv_app_auditoria_capturar', args);
+    if (d) {
+      d.style.color = 'var(--green)';
+      d.textContent = '✓ Guardado: ' + pz + ' ' + palabraEnteros(
+          (catalogo.find(c => c.id === id) || {}).unidad_base, pz) +
+        (r.ml_calculado != null ? ' + ' + num(r.ml_calculado) + ' ml' : '') +
+        (su && su.value ? ' + ' + num(su.value) + ' sueltos' : '');
+    }
+  } catch (e) {
+    if (d) { d.style.color = 'var(--red)'; d.textContent = '✕ No se guardó: ' + e.message; }
+    avisar(e.message, true);
+  }
+}
+
+async function cerrarAuditoria() {
+  if (!confirm('¿Cerrar la auditoría y calcular la varianza?\n\nDespués ya no se puede capturar en ella.')) return;
+  const ajustar = confirm('¿Quieres que el inventario quede igual a lo contado?\n\nAceptar = sí, ajustar.\nCancelar = solo quiero ver la varianza, sin tocar existencias.');
+  verCargando('Calculando varianza...');
+  try {
+    await rpc('inv_app_auditoria_cerrar', { p_auditoria_id: auditoriaId, p_aplicar_ajuste: ajustar });
+    const res = await rpc('inv_app_auditoria_resultado', { p_auditoria_id: auditoriaId });
+    await cargarDatos();
+    ocultarCargando();
+    mostrarVarianza(res || []);
+    auditoriaId = null; auditoriaUbi = null;
+  } catch (e) { ocultarCargando(); avisar(e.message, true); }
+}
+
+function mostrarVarianza(res) {
+  const total = res.reduce((s, r) => s + (Number(r.varianza_costo) || 0), 0);
+  document.getElementById('tituloAccion').textContent = '📊 Varianza de la auditoría';
+  document.getElementById('cuerpoAccion').innerHTML = `
+    <div class="${total < 0 ? 'aviso' : 'resultado'}">
+      <b>$${num(Math.abs(total))}</b>
+      ${total < 0 ? 'de faltante en esta auditoría' : 'de diferencia a favor'}
+    </div>
+    ${!res.length ? '<div class="vacio">No se capturó ningún conteo</div>' : `
+    <table class="tabla"><thead><tr>
+      <th>Producto</th><th>Real</th><th>Teórico</th><th>Dif.</th><th>$</th>
+    </tr></thead><tbody>
+      ${res.map(r => `<tr>
+        <td>${esc(r.nombre)}</td>
+        <td>${num(r.cantidad_real_base)}</td>
+        <td>${num(r.cantidad_teorica_base)}</td>
+        <td class="${Number(r.varianza_base) < 0 ? 'neg' : 'pos'}">${num(r.varianza_base)}</td>
+        <td class="${Number(r.varianza_costo) < 0 ? 'neg' : 'pos'}">$${num(r.varianza_costo)}</td>
+      </tr>`).join('')}
+    </tbody></table>`}`;
+  const b = document.getElementById('btnAccion');
+  b.textContent = 'Entendido'; b.onclick = () => { cerrar('mAccion'); pintar(); };
+  document.getElementById('mAccion').classList.add('abierta');
+}
+
+/* ======================================================================
+   VISTA: MOVIMIENTOS
+   ====================================================================== */
+const NOMBRE_TIPO = {
+  ENTRADA:'➕ Entrada', TRASPASO_SALIDA:'↗ Traspaso salió', TRASPASO_ENTRADA:'↙ Traspaso entró',
+  ABRIR_BOTELLA:'🍾 Botella abierta', PRODUCCION_CONSUMO:'🍸 Usado en batch',
+  PRODUCCION_ALTA:'🍸 Batch producido', CONSUMO:'➖ Consumo', MERMA:'🗑 Merma',
+  CORTESIA:'🎁 Cortesía', AJUSTE_AUDITORIA:'⚖️ Ajuste de auditoría'
+};
+function vistaMovimientos() {
+  if (!movimientos.length) return `<div class="vacio"><div style="font-size:40px">🔄</div><div>Sin movimientos todavía</div></div>`;
+  return `<div class="lista">${movimientos.map(m => {
+    const entra = Number(m.cantidad_base) > 0 || Number(m.piezas) > 0;
+    const col = entra ? 'var(--green)' : 'var(--red)';
+    return `<div class="reng" style="border-left:3px solid ${col}">
+      <div>
+        <div style="font-weight:700;font-size:13px">${esc(m.insumo_nombre)}</div>
+        <div class="t-sub">${NOMBRE_TIPO[m.tipo] || m.tipo} · ${esc(m.ubicacion)}${m.motivo ? ' · ' + esc(m.motivo) : ''}</div>
+        <div class="t-sub">👤 ${esc(m.empleado_nombre || '—')} · ${fecha(m.creado_en)}</div>
+      </div>
+      <div class="reng-der">
+        ${Number(m.piezas) ? `<div style="color:${col};font-weight:800">${Number(m.piezas)>0?'+':''}${m.piezas} pz</div>` : ''}
+        ${Number(m.cantidad_base) ? `<div style="color:${col};font-size:13px">${Number(m.cantidad_base)>0?'+':''}${num(m.cantidad_base)} ${m.unidad_base.toLowerCase()}</div>` : ''}
+        ${m.costo_total != null ? `<div style="font-size:11px;color:var(--dim)">$${num(m.costo_total)}</div>` : ''}
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+/* ======================================================================
+   VISTA: RESUMEN
+   ====================================================================== */
+function vistaResumen() {
+  const totProd = catalogo.filter(i => i.activo).length;
+  const bajos = alertas.filter(a => a.estado === 'BAJO').length;
+  const ceros = alertas.filter(a => a.estado === 'SIN_STOCK').length;
+  const valor = existencias.reduce((s, e) => s + (Number(e.valor_pesos) || 0), 0);
+  const faltanPeso = catalogo.filter(i => i.falta_peso_lleno).length;
+  const stats = [
+    { i:'📋', l:'Productos', v:totProd, c:'var(--accent)' },
+    { i:'⚠️', l:'Bajo mínimo', v:bajos, c:'var(--orange)' },
+    { i:'❌', l:'Sin stock', v:ceros, c:'var(--red)' },
+    ...(esAdmin() ? [{ i:'💰', l:'Valor inventario', v:'$'+num(valor), c:'var(--green)' }] : []),
+    ...(esAdmin() && faltanPeso ? [{ i:'⚖️', l:'Sin peso lleno', v:faltanPeso, c:'var(--orange)' }] : [])
+  ];
+  return `
+    <div class="stats">${stats.map(s => `<div class="stat" style="border-left:4px solid ${s.c}">
+      <span style="font-size:22px">${s.i}</span>
+      <div><b style="color:${s.c}">${s.v}</b><small>${s.l}</small></div></div>`).join('')}</div>
+    ${alertas.length ? `<div class="titulo-sec">🛒 Hay que pedir</div>
+      <div class="lista">${alertas.map(a => `<div class="reng">
+        <div><div style="font-weight:700;font-size:13px">${esc(a.nombre)}</div>
+          <div class="t-sub">${esc(a.ubicacion)} · mín ${num(a.minimo)} ${a.unidad_base.toLowerCase()}</div></div>
+        <div class="reng-der">
+          <div class="${a.estado==='SIN_STOCK'?'neg':''}" style="font-weight:800">${num(a.total_base)}</div>
+          <div class="t-sub">${a.unidad_base.toLowerCase()}</div>
+        </div></div>`).join('')}</div>`
+      : '<div class="vacio"><div style="font-size:40px">✅</div><div>Todo por encima del mínimo</div></div>'}`;
+}
+
+/* ======================================================================
+   MODAL: PRODUCTO
+   ====================================================================== */
+function alternarBotella() {
+  const cat = document.getElementById('fCat').value;
+  const uni = document.getElementById('fUnidad').value;
+  const esMl = (uni === 'ML');
+  document.getElementById('bloqueBotella').classList.toggle('hide', !esMl);
+  document.getElementById('bloquePreparado').classList.toggle('hide', cat !== 'PREPARADO');
+  document.querySelectorAll('#filasUbic .soloMl').forEach(d => d.classList.toggle('hide', !esMl));
+  UBIS.forEach(u => {
+    const l = document.getElementById('lbl_' + u.clave);
+    if (l) l.textContent = esMl ? 'Cerradas' : 'Piezas';
+  });
+  document.querySelectorAll('#filasUbic .fila-ubi').forEach(d => d.classList.toggle('sinml', !esMl));
+}
+function abrirProducto(id) {
+  const i = id ? catalogo.find(x => x.id === id) : null;
+  document.getElementById('tituloProducto').textContent = i ? '✏️ Editar producto' : '➕ Nuevo producto';
+  document.getElementById('btnGuardarProd').textContent = i ? 'Guardar cambios' : 'Dar de alta';
+  const v = (k, d = '') => i ? (i[k] != null ? i[k] : d) : d;
+  document.getElementById('fId').value        = i ? i.id : '';
+  document.getElementById('fNombre').value    = v('nombre');
+  document.getElementById('fCat').value       = v('categoria', 'OTRO');
+  document.getElementById('fUnidad').value    = v('unidad_base', 'PZA');
+  document.getElementById('fPres').value      = v('compra_descripcion');
+  document.getElementById('fContenido').value = v('compra_contenido', 1);
+  document.getElementById('fCosto').value     = v('costo_compra', 0);
+  document.getElementById('fCapacidad').value = v('capacidad_ml');
+  document.getElementById('fDensidad').value  = v('clase_densidad');
+  document.getElementById('fPesoLleno').value = v('peso_lleno_g');
+  document.getElementById('fPesoVacio').value = i && !i.tara_estimada ? v('tara_g') : '';
+  document.getElementById('fRendimiento').value = v('rendimiento_base');
+  document.getElementById('fCaducidad').value = v('caducidad_dias');
+  document.getElementById('fProveedor').value = v('proveedor');
+  document.getElementById('fNotas').value     = v('notas');
+  document.getElementById('fActivo').checked  = i ? !!i.activo : true;
+  const av = document.getElementById('avisoDensidad');
+  if (av) av.classList.toggle('hide', !(i && i.unidad_base === 'ML' && !i.clase_densidad));
+  // El stock inicial solo tiene sentido al dar de alta: en la edicion se usa
+  // Entrada y Minimos desde Existencias, para que todo quede como movimiento.
+  filasUbicaciones();
+  limpiarStockInicial();
+  document.getElementById('bloqueStock').classList.toggle('hide', !!i);
+  document.getElementById('fCat').onchange = alternarBotella;
+  alternarBotella();
+  document.getElementById('mProducto').classList.add('abierta');
+}
+
+async function guardarProducto() {
+  const n = id => { const x = document.getElementById(id).value; return x === '' ? null : Number(x); };
+  const t = id => { const x = document.getElementById(id).value.trim(); return x === '' ? null : x; };
+  if (!t('fNombre')) return avisar('Falta el nombre', true);
+  // Seguro: una botella sin tipo de liquido deja la bascula inservible.
+  if (document.getElementById('fUnidad').value === 'ML' && !t('fDensidad')) {
+    document.getElementById('fDensidad').focus();
+    return avisar('Elige el tipo de líquido: sin ese dato la báscula no puede medir esta botella', true);
+  }
+  const idv = document.getElementById('fId').value;
+  verCargando('Guardando...');
+  try {
+    const nuevoId = await rpc('inv_app_guardar_insumo', {
+      p_id: idv ? Number(idv) : null,
+      p_clave: null, p_nombre: t('fNombre'),
+      p_categoria: document.getElementById('fCat').value,
+      p_unidad_base: document.getElementById('fUnidad').value,
+      p_compra_descripcion: t('fPres'),
+      p_compra_contenido: n('fContenido') || 1,
+      p_costo_compra: n('fCosto') || 0,
+      p_clase_densidad: t('fDensidad'),
+      p_capacidad_ml: n('fCapacidad'),
+      p_peso_lleno_g: n('fPesoLleno'),
+      p_peso_vacio_g: n('fPesoVacio'),
+      p_rendimiento_base: n('fRendimiento'),
+      p_caducidad_dias: n('fCaducidad'),
+      p_proveedor: t('fProveedor'), p_notas: t('fNotas'),
+      p_activo: document.getElementById('fActivo').checked
+    });
+
+    // Solo en alta: sembrar lo que haya en cada ubicacion y fijar sus minimos.
+    let sembrado = 0, fallas = [];
+    if (!idv && nuevoId) {
+      for (const u of UBIS) {
+        const pz  = Number(document.getElementById('st_' + u.clave + '_pz').value  || 0);
+        const ml  = Number(document.getElementById('st_' + u.clave + '_ml').value  || 0);
+        const mn  = Number(document.getElementById('st_' + u.clave + '_min').value || 0);
+        try {
+          if (pz || ml) {
+            await rpc('inv_app_entrada', {
+              p_insumo_id: Number(nuevoId), p_ubicacion: u.clave,
+              p_cantidad_base: ml, p_piezas: pz, p_motivo: 'Alta inicial' });
+            sembrado++;
+          }
+          if (mn > 0) {
+            await rpc('inv_app_fijar_minimo', {
+              p_insumo_id: Number(nuevoId), p_ubicacion: u.clave, p_minimo: mn });
+          }
+        } catch (er) { fallas.push(u.nombre + ': ' + er.message); }
+      }
+    }
+
+    cerrar('mProducto');
+    await cargarDatos(); pintar();
+    if (fallas.length) {
+      avisar('Producto guardado, pero el stock de ' + fallas.join(' · '), true);
+    } else {
+      avisar(idv ? 'Producto actualizado ✓'
+                 : 'Producto dado de alta ✓' + (sembrado ? ' con existencia en ' + sembrado + ' lugar' + (sembrado > 1 ? 'es' : '') : ''));
+    }
+  } catch (e) { avisar(e.message, true); }
+  ocultarCargando();
+}
+
+async function darDeBaja(id) {
+  const i = catalogo.find(c => c.id === id) || {};
+  if (!confirm('¿Dar de baja "' + (i.nombre || '') + '"?\n\nDeja de aparecer en existencias y en los conteos,\npero su historial se conserva. Se puede reactivar después.')) return;
+  verCargando('Dando de baja...');
+  try {
+    await rpc('inv_app_borrar_insumo', { p_id: id });
+    await cargarDatos(); pintar(); avisar('Producto dado de baja ✓');
+  } catch (e) { avisar(e.message, true); }
+  ocultarCargando();
+}
+
+function reactivar(id) {
+  // Se reactiva desde el modal para no perder datos que el catalogo no devuelve.
+  abrirProducto(id);
+  document.getElementById('fActivo').checked = true;
+  avisar('Revisa los datos y guarda para reactivarlo');
+}
+
+/* ======================================================================
+   MODALES DE ACCION
+   ====================================================================== */
+function modalAccion(titulo, cuerpo, textoBoton, fn) {
+  document.getElementById('tituloAccion').textContent = titulo;
+  document.getElementById('cuerpoAccion').innerHTML = cuerpo;
+  const b = document.getElementById('btnAccion');
+  b.textContent = textoBoton; b.onclick = fn;
+  document.getElementById('mAccion').classList.add('abierta');
+}
+function cabecera(e) {
+  const ub = UBIS.find(u => u.clave === e.ubicacion) || {};
+  return `<div style="background:var(--bg3);border-radius:10px;padding:11px;margin-bottom:6px">
+    <div style="font-weight:700;font-size:15px">${esc(e.nombre)}</div>
+    <div class="t-sub">${ub.icono||''} ${esc(ub.nombre||e.ubicacion)} · hay
+      ${e.piezas_cerradas} ${palabraEnteros(e.unidad_base, e.piezas_cerradas)}${Number(e.abierto_base)>0 ? ' + '+num(e.abierto_base)+' '+(e.unidad_base==='ML'?'ml':e.unidad_base.toLowerCase()) : ''}</div>
+  </div>`;
+}
+const buscaExi = (id, ubi) => existencias.find(e => e.insumo_id === id && e.ubicacion === ubi) || {};
+
+function abrirEntrada(id, ubi) {
+  const e = buscaExi(id, ubi);
+  modalAccion('➕ Entrada de mercancía',
+    cabecera(e) +
+    `<label class="lbl">${e.unidad_base === 'ML' ? 'Botellas cerradas que entraron' : 'Piezas que entraron'}</label>
+     <input class="inp" type="number" id="aPz" placeholder="12" min="0">
+     <label class="lbl">O cantidad suelta (${(e.unidad_base||'').toLowerCase()})</label>
+     <input class="inp" type="number" id="aCant" placeholder="0" step="0.001">
+     <label class="lbl">Motivo</label>
+     <input class="inp" id="aMot" value="Compra">`,
+    'Registrar entrada', async () => {
+      const pz = Number(document.getElementById('aPz').value || 0);
+      const ct = Number(document.getElementById('aCant').value || 0);
+      if (!pz && !ct) return avisar('Escribe cuánto entró', true);
+      verCargando('Registrando...');
+      try {
+        await rpc('inv_app_entrada', { p_insumo_id: id, p_ubicacion: ubi,
+          p_cantidad_base: ct, p_piezas: pz,
+          p_motivo: document.getElementById('aMot').value || 'Compra' });
+        cerrar('mAccion'); await cargarDatos(); pintar(); avisar('Entrada registrada ✓');
+      } catch (er) { avisar(er.message, true); }
+      ocultarCargando();
+    });
+}
+
+function abrirBotella(id, ubi) {
+  const e = buscaExi(id, ubi);
+  const cat = catalogo.find(c => c.id === id) || {};
+  if (!cat.capacidad_ml) return avisar('Ese producto no tiene capacidad capturada', true);
+  modalAccion('🍾 Abrir botella',
+    cabecera(e) +
+    `<div class="caja-info">Va a bajar <b>1 pieza cerrada</b> y entrar
+      <b>${num(cat.capacidad_ml)} ml</b> como abierto.</div>`,
+    'Abrir botella', async () => {
+      verCargando('...');
+      try {
+        await rpc('inv_app_abrir_botella', { p_insumo_id: id, p_ubicacion: ubi });
+        cerrar('mAccion'); await cargarDatos(); pintar(); avisar('Botella abierta ✓');
+      } catch (er) { avisar(er.message, true); }
+      ocultarCargando();
+    });
+}
+
+function abrirMerma(id, ubi) {
+  const e = buscaExi(id, ubi);
+  modalAccion('🗑 Merma o cortesía',
+    cabecera(e) +
+    `<label class="lbl">¿Qué pasó?</label>
+     <select class="inp" id="aTipo">
+       <option value="MERMA">🗑 Merma (rotura, derrame, caducidad)</option>
+       <option value="CORTESIA">🎁 Cortesía autorizada</option>
+     </select>
+     <label class="lbl">Cantidad (${(e.unidad_base||'').toLowerCase()})</label>
+     <input class="inp" type="number" id="aCant" placeholder="0" step="0.001">
+     <label class="lbl">O ${e.unidad_base === 'ML' ? 'botellas completas' : 'piezas completas'}</label>
+     <input class="inp" type="number" id="aPz" placeholder="0" min="0">
+     <label class="lbl">Motivo * (obligatorio)</label>
+     <input class="inp" id="aMot" placeholder="Se rompió al servir">`,
+    'Registrar', async () => {
+      const mot = document.getElementById('aMot').value.trim();
+      if (!mot) return avisar('El motivo es obligatorio', true);
+      const pz = Number(document.getElementById('aPz').value || 0);
+      const ct = Number(document.getElementById('aCant').value || 0);
+      if (!pz && !ct) return avisar('Escribe la cantidad', true);
+      verCargando('Registrando...');
+      try {
+        await rpc('inv_app_merma', { p_insumo_id: id, p_ubicacion: ubi,
+          p_cantidad_base: ct, p_piezas: pz,
+          p_tipo: document.getElementById('aTipo').value, p_motivo: mot });
+        cerrar('mAccion'); await cargarDatos(); pintar(); avisar('Registrado ✓');
+      } catch (er) { avisar(er.message, true); }
+      ocultarCargando();
+    });
+}
+
+function abrirTraspaso() {
+  const act = catalogo.filter(i => i.activo);
+  if (!act.length) return avisar('Primero da de alta productos', true);
+  modalAccion('↔ Traspaso entre ubicaciones',
+    `<label class="lbl">Producto</label>
+     <select class="inp" id="aProd">${act.map(i => `<option value="${i.id}">${esc(i.nombre)}</option>`).join('')}</select>
+     <div class="fila2">
+       <div><label class="lbl">De</label><select class="inp" id="aOri">${UBIS.map(u => `<option value="${u.clave}">${esc(u.nombre)}</option>`).join('')}</select></div>
+       <div><label class="lbl">A</label><select class="inp" id="aDes">${UBIS.map(u => `<option value="${u.clave}">${esc(u.nombre)}</option>`).join('')}</select></div>
+     </div>
+     <label class="lbl">Piezas o botellas cerradas</label>
+     <input class="inp" type="number" id="aPz" placeholder="0" min="0">
+     <label class="lbl">O cantidad suelta</label>
+     <input class="inp" type="number" id="aCant" placeholder="0" step="0.001">`,
+    'Traspasar', async () => {
+      const ori = document.getElementById('aOri').value, des = document.getElementById('aDes').value;
+      if (ori === des) return avisar('El origen y el destino son el mismo', true);
+      const pz = Number(document.getElementById('aPz').value || 0);
+      const ct = Number(document.getElementById('aCant').value || 0);
+      if (!pz && !ct) return avisar('Escribe cuánto se mueve', true);
+      verCargando('Traspasando...');
+      try {
+        await rpc('inv_app_traspaso', { p_insumo_id: Number(document.getElementById('aProd').value),
+          p_origen: ori, p_destino: des, p_cantidad_base: ct, p_piezas: pz, p_motivo: null });
+        cerrar('mAccion'); await cargarDatos(); pintar(); avisar('Traspaso hecho ✓');
+      } catch (er) { avisar(er.message, true); }
+      ocultarCargando();
+    });
+}
+
+function abrirMinimo(id) {
+  const i = catalogo.find(c => c.id === id) || {};
+  modalAccion('🎯 Mínimos por ubicación',
+    `<div class="caja-info">Cuando el total baje de este número en ese lugar, aparece en
+      <b>Hay que pedir</b>. Déjalo en 0 si no quieres alerta.</div>
+     <div style="font-weight:700">${esc(i.nombre)}</div>
+     ${UBIS.map(u => {
+        const e = existencias.find(x => x.insumo_id === id && x.ubicacion === u.clave);
+        return `<div><label class="lbl">${u.icono||''} ${esc(u.nombre)} (${(i.unidad_base||'').toLowerCase()})</label>
+          <input class="inp" type="number" id="min_${u.clave}" value="${e ? Number(e.minimo) : 0}" min="0" step="0.001"></div>`;
+     }).join('')}`,
+    'Guardar mínimos', async () => {
+      verCargando('Guardando...');
+      try {
+        for (const u of UBIS) {
+          const v = Number(document.getElementById('min_' + u.clave).value || 0);
+          await rpc('inv_app_fijar_minimo', { p_insumo_id: id, p_ubicacion: u.clave, p_minimo: v });
+        }
+        cerrar('mAccion'); await cargarDatos(); pintar(); avisar('Mínimos guardados ✓');
+      } catch (er) { avisar(er.message, true); }
+      ocultarCargando();
+    });
+}
+
+function abrirProducir(id) {
+  const i = catalogo.find(c => c.id === id) || {};
+  modalAccion('🍸 Producir ' + (i.nombre || ''),
+    `<div class="caja-info">Un lote rinde <b>${num(i.rendimiento_base)} ${(i.unidad_base||'').toLowerCase()}</b>.
+      Al producir se descuentan solos los ingredientes de la receta.</div>
+     <label class="lbl">¿Cuántos lotes?</label>
+     <input class="inp" type="number" id="aLotes" value="1" min="0.1" step="0.1">
+     <label class="lbl">Nota</label>
+     <input class="inp" id="aNota" placeholder="Opcional">`,
+    'Producir', async () => {
+      const l = Number(document.getElementById('aLotes').value || 0);
+      if (l <= 0) return avisar('Los lotes deben ser mayores a cero', true);
+      verCargando('Produciendo...');
+      try {
+        const r = await rpc('inv_app_producir', { p_preparado_id: id, p_lotes: l,
+          p_nota: document.getElementById('aNota').value || null });
+        cerrar('mAccion'); await cargarDatos(); pintar();
+        avisar('Producido: ' + num(r.cantidad) + ' ' + (i.unidad_base||'').toLowerCase() +
+               (r.caduca_el ? ' · caduca ' + r.caduca_el : '') + ' ✓');
+      } catch (er) { avisar(er.message, true); }
+      ocultarCargando();
+    });
+}
+
+/* ======================================================================
+   UTILIDADES
+   ====================================================================== */
+function cerrar(id) { document.getElementById(id).classList.remove('abierta'); }
+/* "cerradas" solo aplica a botellas. Un paquete de pasta no esta "cerrado". */
+function palabraEnteros(unidad, n) {
+  if (unidad === 'ML') return n === 1 ? 'cerrada' : 'cerradas';
+  if (unidad === 'G')  return n === 1 ? 'paquete' : 'paquetes';
+  return n === 1 ? 'pieza' : 'piezas';
+}
+function palabraSueltos(unidad) {
+  if (unidad === 'ML') return 'ml abiertos';
+  if (unidad === 'G')  return 'gramos sueltos';
+  return 'sueltos';
+}
+function esc(s) { return String(s == null ? '' : s)
+  .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function num(v) {
+  const n = Number(v); if (isNaN(n)) return '0';
+  return n % 1 === 0 ? n.toLocaleString('es-MX')
+                     : n.toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+}
+function fecha(t) {
+  if (!t) return '—';
+  const d = new Date(t); if (isNaN(d)) return '—';
+  return d.toLocaleString('es-MX', { day:'2-digit', month:'short', hour:'2-digit', minute:'2-digit' });
+}
+function verCargando(m) {
+  document.getElementById('txtCargando').textContent = m || 'Cargando...';
+  document.getElementById('cargando').classList.add('ver');
+}
+function ocultarCargando() { document.getElementById('cargando').classList.remove('ver'); }
+function avisar(m, error) {
+  const t = document.getElementById('avisoFlot');
+  t.textContent = m;
+  t.style.background = error ? '#c0392b' : '#27ae60';
+  t.classList.add('ver');
+  setTimeout(() => t.classList.remove('ver'), error ? 4200 : 2600);
+}
+</script>
+</body>
+</html>
