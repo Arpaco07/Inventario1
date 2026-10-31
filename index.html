@@ -499,16 +499,26 @@ async function irA(t, el) {
   pintar();
 }
 
-/* Chencho (OPERATIVO) entra y SOLO ve Cocina. Carla y Arturo ven todo.
-   Es la misma app y la misma base: lo que cambia es que puerta se abre. */
+/* Quien ve que pestaña.
+   OJO: va por ROL, no por nivel. Mesero y Cocina dan el mismo nivel
+   (OPERATIVO), asi que filtrar por nivel le abriria el conteo de cocina
+   a los cuatro meseros. Solo el de cocina ve Cocina, y solo ve esa. */
+const esCocinero = () => YO && /cocina|chef/i.test(YO.rol || '');
+
 function ajustarPestanasPorNivel() {
-  const soloCocina = !puedeMover();
+  const soloCocina = esCocinero();
   document.querySelectorAll('.pestana').forEach(p => {
-    const esCocina = p.getAttribute('data-tab') === 'cocina';
-    p.style.display = (soloCocina && !esCocina) ? 'none' : '';
-    p.classList.toggle('on', soloCocina ? esCocina : p.getAttribute('data-tab') === tab);
+    const t = p.getAttribute('data-tab');
+    let ver;
+    if (soloCocina)          ver = (t === 'cocina');   // Chencho: nada mas Cocina
+    else if (t === 'cocina') ver = puedeMover();       // Cocina: encargado o admin
+    else                     ver = true;               // lo demas, como siempre
+    p.style.display = ver ? '' : 'none';
+    p.classList.remove('on');
   });
   if (soloCocina) tab = 'cocina';
+  const act = document.querySelector('.pestana[data-tab="' + tab + '"]');
+  if (act) act.classList.add('on');
 }
 
 function pintar() {
