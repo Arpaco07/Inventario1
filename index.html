@@ -736,8 +736,14 @@ function tarjetaCatalogo(i) {
    dejaria de servir para lo unico que sirve, que es encontrar la diferencia.
    ====================================================================== */
 
-/* Chencho cuenta en kilos y litros; la base guarda gramos y mililitros. */
+/* Como se le pide cada cosa a Chencho.
+   Regla: si el sistema sabe cuanto pesa UNA pieza, se cuenta por pieza.
+   Nadie pesa un T-bone — se dice "hay 3". El sistema ya sabe que son 360 g
+   cada uno y hace la cuenta solo al cerrar.
+   Lo que no viene en piezas (molida, chambarete, falda) si va por peso,
+   y en la unidad del cocinero: kilos y litros, no gramos ni mililitros. */
 function cocUnidad(i) {
+  if (i.gramos_por_pieza)     return { u: 'pz', f: 1, porPieza: true };
   if (i.unidad_base === 'G')  return { u: 'kg', f: 1000 };
   if (i.unidad_base === 'ML') return { u: 'L',  f: 1000 };
   return { u: (i.unidad_base || 'pz').toLowerCase(), f: 1 };
@@ -745,17 +751,34 @@ function cocUnidad(i) {
 
 async function cocinaArrancar() {
   const e = await rpc('inv_app_conteo_estado', { p_ubicacion: 'COCINA' });
+  let crudos = null;
   if (e && e.hay_abierto) {
     cocConteo = e.auditoria_id;
     cocModo   = (e.tipo === 'SEMANAL') ? 'SEMANAL' : 'DIARIO';
-    cocHechos = {};
-    const ya = e.ya_capturado || {};
-    for (const k in ya) if (ya[k] !== null) cocHechos[k] = true;
+    crudos    = e.ya_capturado || {};
   } else {
-    cocConteo = null; cocHechos = {};
+    cocConteo = null;
   }
+  cocHechos = {};
   cocLista = await rpc('inv_app_lista_conteo',
     { p_ubicacion: 'COCINA', p_modo: cocModo }) || [];
+
+  /* La conversion va DESPUES de cargar la lista, no antes: solo ahi se sabe si
+     cada renglon se cuenta por pieza o por peso, y en que unidad se le pidio.
+     La base guarda gramos; la pantalla pide kilos o piezas. Convertir con la
+     regla equivocada escribiria 2500 donde van 2.5. */
+  if (crudos) {
+    for (const i of cocLista) {
+      const d = crudos[String(i.insumo_id)];
+      if (!d) continue;
+      const v = cocUnidad(i);
+      if (v.porPieza) {
+        cocHechos[i.insumo_id] = Number(d.pz || 0);
+      } else if (d.ct !== null && d.ct !== undefined) {
+        cocHechos[i.insumo_id] = Number(d.ct) / v.f;
+      }
+    }
+  }
 }
 
 async function cocinaEmpezar(modo) {
@@ -787,12 +810,16 @@ async function cocinaCapturar(id) {
   if (!isFinite(n) || n < 0) { if (marca) marca.textContent = '⚠️'; return; }
 
   const ins = cocLista.find(x => x.insumo_id === id);
-  const f = ins ? cocUnidad(ins).f : 1;
+  const v = ins ? cocUnidad(ins) : { f: 1 };
   if (marca) marca.textContent = '…';
   try {
+    /* Por pieza va en piezas_cerradas; al cerrar, la base lo multiplica por
+       gramos_por_pieza. Por peso va en cantidad_suelta, en unidad base.
+       Mandar lo contado en el campo equivocado lo dejaria en cero. */
     await rpc('inv_app_auditoria_capturar', {
-      p_auditoria_id: cocConteo, p_insumo_id: id,
-      p_piezas_cerradas: 0, p_peso_g: null, p_cantidad_suelta: n * f
+      p_auditoria_id: cocConteo, p_insumo_id: id, p_peso_g: null,
+      p_piezas_cerradas: v.porPieza ? Math.round(n) : 0,
+      p_cantidad_suelta: v.porPieza ? 0 : n * v.f
     });
     cocHechos[id] = true;
     if (marca) marca.textContent = '✓';
@@ -924,13 +951,21 @@ function vistaCocina() {
     h += '<div class="coc-lista">';
     for (const i of arr) {
       const v = cocUnidad(i);
+      /* OJO con el 0: contar cero es contar. Por eso se pregunta por
+         !== undefined y no por el valor, que con 0 daria falso y el renglon
+         se veria como si nadie lo hubiera contado. */
+      const hecho = cocHechos[i.insumo_id] !== undefined;
       h += `<div class="coc-fila" data-n="${esc((i.nombre||'').toLowerCase())}">
         <div class="coc-nom">${esc(i.nombre)}
-          ${i.presentacion ? `<small>${esc(i.presentacion)}</small>` : ''}</div>
+          ${v.porPieza ? `<small>por pieza</small>`
+                       : (i.presentacion ? `<small>${esc(i.presentacion)}</small>` : '')}</div>
         <div class="coc-cap">
-          <input class="inp-chico${cocHechos[i.insumo_id] ? ' coc-ok' : ''}" type="number"
-                 id="cc_${i.insumo_id}" placeholder="0" min="0" step="any"
-                 inputmode="decimal" onchange="cocinaCapturar(${i.insumo_id})"
+          <input class="inp-chico${hecho ? ' coc-ok' : ''}" type="number"
+                 id="cc_${i.insumo_id}" placeholder="0" min="0"
+                 step="${v.porPieza ? '1' : 'any'}"
+                 value="${hecho ? cocHechos[i.insumo_id] : ''}"
+                 inputmode="${v.porPieza ? 'numeric' : 'decimal'}"
+                 onchange="cocinaCapturar(${i.insumo_id})"
                  aria-label="Cuánto hay de ${esc(i.nombre)}">
           <span class="coc-u">${esc(v.u)}</span>
           <span class="coc-ok-m" id="cm_${i.insumo_id}">${cocHechos[i.insumo_id] ? '✓' : ''}</span>
