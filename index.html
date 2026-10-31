@@ -798,7 +798,10 @@ async function cocinaArrancar() {
       if (!d) continue;
       const v = cocUnidad(i);
       if (v.porPieza) {
-        cocHechos[i.insumo_id] = Number(d.pz || 0);
+        /* inverso del reparto de arriba: piezas enteras + la fraccion */
+        const gr = Number(i.gramos_por_pieza) || 1;
+        const n  = Number(d.pz || 0) + (Number(d.ct || 0) / gr);
+        cocHechos[i.insumo_id] = Math.round(n * 1000) / 1000;
       } else if (d.ct !== null && d.ct !== undefined) {
         cocHechos[i.insumo_id] = Number(d.ct) / v.f;
       }
@@ -838,13 +841,24 @@ async function cocinaCapturar(id) {
   const v = ins ? cocUnidad(ins) : { f: 1 };
   if (marca) marca.textContent = '…';
   try {
-    /* Por pieza va en piezas_cerradas; al cerrar, la base lo multiplica por
-       gramos_por_pieza. Por peso va en cantidad_suelta, en unidad base.
-       Mandar lo contado en el campo equivocado lo dejaria en cero. */
+    /* LAS PIEZAS PUEDEN SER FRACCIONARIAS. En el Corte de Arturo hay 23.5
+       hamburguesas, 19.5 rib eye con queso, 0.56 de arrachera tacos: la
+       hamburguesa infantil usa media rueda, y de ahi salen las mitades.
+       Pero piezas_cerradas es entero en la base. Entonces se parte:
+         2.5 T-bone  ->  2 piezas enteras + 180 g sueltos (media pieza)
+       Al cerrar, la base hace piezas*gramos_por_pieza + sueltos y da lo mismo.
+       Redondear aqui habria convertido 23.5 en 24 sin avisarle a nadie. */
+    let piezas = 0, suelto = 0;
+    if (v.porPieza) {
+      const gr = Number(ins.gramos_por_pieza) || 1;
+      piezas = Math.floor(n);
+      suelto = Math.round((n - piezas) * gr * 1000) / 1000;
+    } else {
+      suelto = n * v.f;
+    }
     await rpc('inv_app_auditoria_capturar', {
       p_auditoria_id: cocConteo, p_insumo_id: id, p_peso_g: null,
-      p_piezas_cerradas: v.porPieza ? Math.round(n) : 0,
-      p_cantidad_suelta: v.porPieza ? 0 : n * v.f
+      p_piezas_cerradas: piezas, p_cantidad_suelta: suelto
     });
     cocHechos[id] = n;          // se guarda el VALOR, no un si/no: contar cero es contar
     if (marca) marca.textContent = '✓';
@@ -986,14 +1000,14 @@ function vistaCocina() {
       const hecho = cocHechos[i.insumo_id] !== undefined;
       h += `<div class="coc-fila" data-n="${esc((i.nombre||'').toLowerCase())}">
         <div class="coc-nom">${esc(i.nombre)}
-          ${v.porPieza ? `<small>por pieza</small>`
+          ${v.porPieza ? `<small>por pieza · se admiten mitades</small>`
                        : (i.presentacion ? `<small>${esc(i.presentacion)}</small>` : '')}</div>
         <div class="coc-cap">
           <input class="inp-chico${hecho ? ' coc-ok' : ''}" type="number"
                  id="cc_${i.insumo_id}" placeholder="0" min="0"
-                 step="${v.porPieza ? '1' : 'any'}"
+                 step="any"
                  value="${hecho ? cocHechos[i.insumo_id] : ''}"
-                 inputmode="${v.porPieza ? 'numeric' : 'decimal'}"
+                 inputmode="decimal"
                  onchange="cocinaCapturar(${i.insumo_id})"
                  aria-label="Cuánto hay de ${esc(i.nombre)}">
           <span class="coc-u">${esc(v.u)}</span>
