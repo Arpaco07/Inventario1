@@ -367,13 +367,38 @@ let cocConteo = null;   // id de la auditoria abierta en COCINA
 let cocLista  = [];     // los renglones que toca contar
 let cocModo   = 'DIARIO';
 let cocHechos = {};     // insumo_id -> true cuando ya se guardo
-const ZONAS_COCINA = [
-  ['CARNES',     '🥩 Carnes'],
-  ['VERDURAS',   '🥬 Verduras'],
-  ['BARRA_FRIA', '🧀 Barra fría'],
-  ['VARIOS',     '🧂 Insumos varios'],
-  ['BARRA',      '🍸 Barra']
-];
+/* Las zonas ya NO van escritas aqui. Vienen de la base, en el orden en que se
+   recorre, porque ahora son dos listas distintas:
+     1-10  las secciones del Corte — lo que cocina tiene LISTO para vender
+     20+   las zonas fisicas       — lo CRUDO, por donde se camina
+   Si se dejaran escritas, cada seccion nueva habria que venir a agregarla aqui
+   a mano y la pantalla se quedaria sin dibujarla sin avisar. */
+const ICONO_ZONA = {
+  'CARNES':'🥩', 'VERDURAS':'🥬', 'BARRA_FRIA':'🧀', 'VARIOS':'🧂', 'BARRA':'🍸',
+  'DEL GRILL':'🔥', 'TACOS':'🌮', 'DEL MAR':'🦐', 'ENTRADAS':'🥑',
+  'PARA IR PICANDO':'🍢', 'GRANJA':'🥗', 'PARA EL ANTOJO':'🍔',
+  'CALDOS':'🍲', 'OTROS':'🍟', 'POSTRES':'🍰'
+};
+
+/* "1 DEL GRILL" -> "Del grill".  "BARRA_FRIA" -> "Barra fria". */
+function zonaBonita(z) {
+  const limpio = String(z || '').replace(/^\d+\s+/, '').replace(/_/g, ' ');
+  const icono  = ICONO_ZONA[limpio] || ICONO_ZONA[z] || '';
+  const texto  = limpio.charAt(0) + limpio.slice(1).toLowerCase();
+  return (icono ? icono + ' ' : '') + texto;
+}
+
+/* Las zonas que trae la lista, sin repetir y en el orden en que llegaron. */
+/* "1 DEL GRILL" no sirve de id de HTML: lleva espacios. */
+function claveId(z) { return String(z||'').replace(/[^A-Za-z0-9]+/g, '_'); }
+
+function zonasDeLaLista() {
+  const vistas = [], ya = {};
+  for (const i of cocLista) {
+    if (!ya[i.zona]) { ya[i.zona] = true; vistas.push(i.zona); }
+  }
+  return vistas;
+}
 let verBajas = false;
 let tDebounce = null;
 
@@ -821,7 +846,7 @@ async function cocinaCapturar(id) {
       p_piezas_cerradas: v.porPieza ? Math.round(n) : 0,
       p_cantidad_suelta: v.porPieza ? 0 : n * v.f
     });
-    cocHechos[id] = true;
+    cocHechos[id] = n;          // se guarda el VALOR, no un si/no: contar cero es contar
     if (marca) marca.textContent = '✓';
     campo.classList.add('coc-ok');
     cocinaMarcador();
@@ -836,11 +861,11 @@ function cocinaMarcador() {
   if (!z) return;
   const hechos = Object.keys(cocHechos).length;
   z.textContent = hechos + ' de ' + cocLista.length;
-  ZONAS_COCINA.forEach(([clave]) => {
-    const b = document.getElementById('cz_' + clave);
+  zonasDeLaLista().forEach((clave) => {
+    const b = document.getElementById('cz_' + claveId(clave));
     if (!b) return;
     const arr = cocLista.filter(x => x.zona === clave);
-    const h = arr.filter(x => cocHechos[x.insumo_id]).length;
+    const h = arr.filter(x => cocHechos[x.insumo_id] !== undefined).length;
     b.textContent = h + '/' + arr.length;
   });
   const btn = document.getElementById('cocBtnCerrar');
@@ -934,20 +959,24 @@ function vistaCocina() {
     </div>
     <div id="zonaCoc">`;
 
-  for (const [clave, titulo] of ZONAS_COCINA) {
+  let avisoPuesto = false;
+  for (const clave of zonasDeLaLista()) {
     const arr = cocLista.filter(x => x.zona === clave);
     if (!arr.length) continue;
-    const hechos = arr.filter(x => cocHechos[x.insumo_id]).length;
-    h += `<div class="titulo-sec" style="display:flex;justify-content:space-between;align-items:center">
-            <span>${titulo}</span>
-            <span class="pastilla" id="cz_${clave}">${hechos}/${arr.length}</span>
-          </div>`;
-    if (clave === 'CARNES') {
-      h += `<div class="caja-info" style="margin-bottom:8px;font-size:12px">
-        Igual que la sección Corte: se cuentan las piezas que de verdad hay.
-        Al cerrar, el sistema las compara contra lo que creía y contra la venta del día.
+    const hechos = arr.filter(x => cocHechos[x.insumo_id] !== undefined).length;
+    /* El primer renglon crudo (zona_orden 20+) abre la segunda mitad de la
+       lista. Hasta ahi se conto lo LISTO; de ahi para abajo, lo CRUDO. */
+    if (!avisoPuesto && arr[0] && arr[0].zona_orden >= 20) {
+      avisoPuesto = true;
+      h += `<div class="caja-info" style="margin:18px 0 8px;font-size:12px">
+        De aquí para abajo es <b>materia prima</b>: lo que todavía no se porciona.
+        Arriba quedó lo que cocina ya tiene listo para vender.
       </div>`;
     }
+    h += `<div class="titulo-sec" style="display:flex;justify-content:space-between;align-items:center">
+            <span>${esc(zonaBonita(clave))}</span>
+            <span class="pastilla" id="cz_${claveId(clave)}">${hechos}/${arr.length}</span>
+          </div>`;
     h += '<div class="coc-lista">';
     for (const i of arr) {
       const v = cocUnidad(i);
@@ -968,7 +997,7 @@ function vistaCocina() {
                  onchange="cocinaCapturar(${i.insumo_id})"
                  aria-label="Cuánto hay de ${esc(i.nombre)}">
           <span class="coc-u">${esc(v.u)}</span>
-          <span class="coc-ok-m" id="cm_${i.insumo_id}">${cocHechos[i.insumo_id] ? '✓' : ''}</span>
+          <span class="coc-ok-m" id="cm_${i.insumo_id}">${hecho ? '✓' : ''}</span>
         </div>
       </div>`;
     }
