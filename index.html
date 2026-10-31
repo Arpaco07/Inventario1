@@ -641,6 +641,7 @@ function tarjetaExistencia(e) {
     </div>
     ${puedeMover() ? `<div class="acciones">
       <button class="btn-min b-ent"   onclick="abrirEntrada(${e.insumo_id},'${e.ubicacion}')">➕ Entrada</button>
+      <button class="btn-min b-tras"  onclick="abrirTraspaso(${e.insumo_id},'${e.ubicacion}')">↗ Salida</button>
       <button class="btn-min b-abrir" onclick="abrirBotella(${e.insumo_id},'${e.ubicacion}')">🍾 Abrir</button>
       <button class="btn-min b-merma" onclick="abrirMerma(${e.insumo_id},'${e.ubicacion}')">🗑 Merma</button>
     </div>` : `<div class="acciones">
@@ -1409,15 +1410,26 @@ function abrirMerma(id, ubi) {
     });
 }
 
-function abrirTraspaso() {
+/* La SALIDA de un producto es un traspaso: sale de un lado y entra en otro.
+   Nunca se "pierde" mercancia, se mueve — por eso no hay un boton de salida
+   suelto, y por eso la bodega siempre cuadra con lo que esta en las areas.
+   Se puede llamar de dos formas:
+     - desde la tarjeta: abrirTraspaso(id, 'BODEGA')  -> ya viene todo puesto
+     - desde el boton de arriba: abrirTraspaso()      -> se elige a mano      */
+function abrirTraspaso(idPre, oriPre) {
   const act = catalogo.filter(i => i.activo);
   if (!act.length) return avisar('Primero da de alta productos', true);
-  modalAccion('↔ Traspaso entre ubicaciones',
+  const sel = (v, pre) => v === pre ? ' selected' : '';
+  /* Si se abrio desde una tarjeta, el destino arranca en la PRIMERA ubicacion
+     distinta al origen: asi no queda "de Bodega a Bodega", que es el error
+     que mas se comete con los dos menus puestos en lo mismo. */
+  const desPre = oriPre ? (UBIS.find(u => u.clave !== oriPre) || {}).clave : null;
+  modalAccion('↗ Salida / traspaso',
     `<label class="lbl">Producto</label>
-     <select class="inp" id="aProd">${act.map(i => `<option value="${i.id}">${esc(i.nombre)}</option>`).join('')}</select>
+     <select class="inp" id="aProd">${act.map(i => `<option value="${i.id}"${sel(i.id, idPre)}>${esc(i.nombre)}</option>`).join('')}</select>
      <div class="fila2">
-       <div><label class="lbl">De</label><select class="inp" id="aOri">${UBIS.map(u => `<option value="${u.clave}">${esc(u.nombre)}</option>`).join('')}</select></div>
-       <div><label class="lbl">A</label><select class="inp" id="aDes">${UBIS.map(u => `<option value="${u.clave}">${esc(u.nombre)}</option>`).join('')}</select></div>
+       <div><label class="lbl">Sale de</label><select class="inp" id="aOri">${UBIS.map(u => `<option value="${u.clave}"${sel(u.clave, oriPre)}>${esc(u.nombre)}</option>`).join('')}</select></div>
+       <div><label class="lbl">Entra a</label><select class="inp" id="aDes">${UBIS.map(u => `<option value="${u.clave}"${sel(u.clave, desPre)}>${esc(u.nombre)}</option>`).join('')}</select></div>
      </div>
      <label class="lbl">Piezas o botellas cerradas</label>
      <input class="inp" type="number" id="aPz" placeholder="0" min="0">
