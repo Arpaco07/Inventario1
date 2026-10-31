@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="theme-color" content="#0f0f0f">
 <title>Los Pares 84×88 — Inventario</title>
+<link rel="manifest" href="./manifest.webmanifest">
+<link rel="icon" href="./icon-192.png" sizes="192x192" type="image/png">
+<link rel="apple-touch-icon" href="./apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Inventario">
 <style>
 /* ======================================================================
    Los Pares 84x88 — Inventario
@@ -1564,6 +1570,21 @@ function avisar(m, error) {
   t.style.background = error ? '#c0392b' : '#27ae60';
   t.classList.add('ver');
   setTimeout(() => t.classList.remove('ver'), error ? 4200 : 2600);
+}
+
+/* ======================================================================
+   App instalable. Le da a Chencho un icono en la pantalla del telefono
+   en vez de un favorito que se pierde entre pestanas.
+   Va envuelto en try/catch y sin .then obligatorio a proposito: si el
+   navegador no soporta service workers, o el registro falla, la app
+   tiene que seguir funcionando igual. Un icono bonito no vale tumbar
+   un conteo.
+   ====================================================================== */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    try { navigator.serviceWorker.register('./sw.js').catch(() => {}); }
+    catch (e) { /* sin instalable, pero la app corre */ }
+  });
 }
 </script>
 </body>
