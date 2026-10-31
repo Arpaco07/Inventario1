@@ -42,6 +42,19 @@ header{background:#141414;border-bottom:1px solid #222;position:sticky;top:0;z-i
 .pestanas::-webkit-scrollbar{display:none}
 .pestana{background:none;border:none;border-bottom:2px solid transparent;color:var(--dim);padding:10px 13px;font-size:13px;font-weight:600;white-space:nowrap}
 .pestana.on{color:var(--accent);border-bottom-color:var(--accent)}
+/* Conteo de cocina: lista larga, una fila por insumo. Son ~57 renglones
+   cada noche, y una rejilla de tarjetas se recorre muy lento. */
+.coc-lista{background:var(--bg2);border-radius:12px;overflow:hidden;margin-bottom:14px}
+.coc-fila{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;
+  padding:9px 12px;border-bottom:1px solid rgba(255,255,255,.06)}
+.coc-fila:last-child{border-bottom:none}
+.coc-nom{font-size:14px;line-height:1.3;min-width:0}
+.coc-nom small{display:block;color:var(--muted);font-size:10.5px;margin-top:2px}
+.coc-cap{display:flex;align-items:center;gap:6px}
+.coc-cap .inp-chico{width:72px;text-align:center;font-size:15px;font-weight:600}
+.coc-cap .inp-chico.coc-ok{border-color:rgba(74,222,128,.5)}
+.coc-u{font-size:11px;color:var(--muted);width:24px}
+.coc-ok-m{font-size:13px;color:var(--ok,#4ade80);width:16px;text-align:center}
 main{padding:14px;max-width:1000px;margin:0 auto}
 
 .barra-sup{display:flex;gap:9px;margin-bottom:10px;flex-wrap:wrap}
@@ -182,6 +195,7 @@ main{padding:14px;max-width:1000px;margin:0 auto}
     </div>
     <div class="pestanas">
       <button class="pestana on" data-tab="existencias" onclick="irA('existencias',this)">📦 Existencias</button>
+      <button class="pestana" data-tab="cocina"     onclick="irA('cocina',this)">🍳 Cocina</button>
       <button class="pestana" data-tab="catalogo"   onclick="irA('catalogo',this)">📋 Catálogo</button>
       <button class="pestana" data-tab="auditoria"  onclick="irA('auditoria',this)">⚖️ Auditoría</button>
       <button class="pestana" data-tab="movimientos" onclick="irA('movimientos',this)">🔄 Movimientos</button>
@@ -289,6 +303,21 @@ let catalogo = [], existencias = [], movimientos = [], alertas = [];
 let tab = 'existencias';
 let fUbi = 'TODAS', fCat = 'TODAS', busca = '';
 let auditoriaId = null, auditoriaUbi = null;
+
+/* ---- Conteo de cocina (Chencho cuenta, Carla cierra) ----
+   Lista corta y en el orden en que Chencho recorre la cocina:
+   carnes, verduras, barra fria, insumos varios. Arturo, 31 oct.     */
+let cocConteo = null;   // id de la auditoria abierta en COCINA
+let cocLista  = [];     // los renglones que toca contar
+let cocModo   = 'DIARIO';
+let cocHechos = {};     // insumo_id -> true cuando ya se guardo
+const ZONAS_COCINA = [
+  ['CARNES',     '🥩 Carnes'],
+  ['VERDURAS',   '🥬 Verduras'],
+  ['BARRA_FRIA', '🧀 Barra fría'],
+  ['VARIOS',     '🧂 Insumos varios'],
+  ['BARRA',      '🍸 Barra']
+];
 let verBajas = false;
 let tDebounce = null;
 
@@ -394,7 +423,9 @@ async function arrancarApp() {
     p.style.color = col;
 
     llenarSelects();
+    ajustarPestanasPorNivel();
     await cargarDatos();
+    if (tab === 'cocina') { try { await cocinaArrancar(); } catch(e){ avisar(e.message, true); } }
     pintar();
   } catch (e) {
     ocultarCargando();
@@ -460,12 +491,30 @@ async function irA(t, el) {
   document.querySelectorAll('.pestana').forEach(p => p.classList.remove('on'));
   if (el) el.classList.add('on');
   if (t === 'movimientos') { verCargando('...'); try { await cargarMovs(); } catch(e){ avisar(e.message,true); } ocultarCargando(); }
+  if (t === 'cocina') {
+    verCargando('Cargando el conteo...');
+    try { await cocinaArrancar(); } catch(e){ avisar(e.message, true); }
+    ocultarCargando();
+  }
   pintar();
+}
+
+/* Chencho (OPERATIVO) entra y SOLO ve Cocina. Carla y Arturo ven todo.
+   Es la misma app y la misma base: lo que cambia es que puerta se abre. */
+function ajustarPestanasPorNivel() {
+  const soloCocina = !puedeMover();
+  document.querySelectorAll('.pestana').forEach(p => {
+    const esCocina = p.getAttribute('data-tab') === 'cocina';
+    p.style.display = (soloCocina && !esCocina) ? 'none' : '';
+    p.classList.toggle('on', soloCocina ? esCocina : p.getAttribute('data-tab') === tab);
+  });
+  if (soloCocina) tab = 'cocina';
 }
 
 function pintar() {
   const c = document.getElementById('contenido');
   if (tab === 'existencias')      c.innerHTML = vistaExistencias();
+  else if (tab === 'cocina')      c.innerHTML = vistaCocina();
   else if (tab === 'catalogo')    c.innerHTML = vistaCatalogo();
   else if (tab === 'auditoria')   c.innerHTML = vistaAuditoria();
   else if (tab === 'movimientos') c.innerHTML = vistaMovimientos();
@@ -601,6 +650,238 @@ function tarjetaCatalogo(i) {
                  : `<button class="btn-min b-ent" onclick="reactivar(${i.id})">↩️ Reactivar</button>`}
     </div>
   </div>`;
+}
+
+/* ======================================================================
+   VISTA: COCINA  — el conteo de cada noche
+   ----------------------------------------------------------------------
+   Reglas que puso Arturo el 31 oct 2026:
+     1. Los congeladores de CASA son otro conteo. Aqui solo cocina.
+     2. Lo que se acaba rapido se cuenta DIARIO; lo demas, una vez por semana.
+     3. Cada cosa en SU unidad: pieza, kilo, bolsa o paquete.
+     4. Se cuenta en la noche, al cerrar.
+     5. Chencho cuenta, Carla rectifica.
+     6. El recorrido va: carnes, verduras, barra fria, insumos varios.
+     7. Las carnes trabajan como la seccion Corte del sistema de Carne.
+
+   Va a CIEGAS, igual que la auditoria: no se le enseña a Chencho lo que el
+   sistema cree que hay. Si lo viera, escribiria ese numero y el conteo
+   dejaria de servir para lo unico que sirve, que es encontrar la diferencia.
+   ====================================================================== */
+
+/* Chencho cuenta en kilos y litros; la base guarda gramos y mililitros. */
+function cocUnidad(i) {
+  if (i.unidad_base === 'G')  return { u: 'kg', f: 1000 };
+  if (i.unidad_base === 'ML') return { u: 'L',  f: 1000 };
+  return { u: (i.unidad_base || 'pz').toLowerCase(), f: 1 };
+}
+
+async function cocinaArrancar() {
+  const e = await rpc('inv_app_conteo_estado', { p_ubicacion: 'COCINA' });
+  if (e && e.hay_abierto) {
+    cocConteo = e.auditoria_id;
+    cocModo   = (e.tipo === 'SEMANAL') ? 'SEMANAL' : 'DIARIO';
+    cocHechos = {};
+    const ya = e.ya_capturado || {};
+    for (const k in ya) if (ya[k] !== null) cocHechos[k] = true;
+  } else {
+    cocConteo = null; cocHechos = {};
+  }
+  cocLista = await rpc('inv_app_lista_conteo',
+    { p_ubicacion: 'COCINA', p_modo: cocModo }) || [];
+}
+
+async function cocinaEmpezar(modo) {
+  cocModo = modo;
+  verCargando('Abriendo el conteo...');
+  try {
+    const tipo = (modo === 'SEMANAL') ? 'SEMANAL' : 'CIERRE_TURNO';
+    const id = await rpc('inv_app_auditoria_abrir',
+      { p_ubicacion: 'COCINA', p_tipo: tipo });
+    cocConteo = (id && typeof id === 'object') ? id.id : id;
+    cocHechos = {};
+    cocLista = await rpc('inv_app_lista_conteo',
+      { p_ubicacion: 'COCINA', p_modo: cocModo }) || [];
+    pintar();
+  } catch (e) { avisar(e.message, true); }
+  ocultarCargando();
+}
+
+/* Se guarda al salir del campo, uno por uno. Si se va la luz a media
+   cocina, lo ya capturado no se pierde. */
+async function cocinaCapturar(id) {
+  if (!cocConteo) return;
+  const campo = document.getElementById('cc_' + id);
+  const marca = document.getElementById('cm_' + id);
+  if (!campo) return;
+  const txt = (campo.value || '').trim().replace(',', '.');
+  if (txt === '') { delete cocHechos[id]; if (marca) marca.textContent = ''; cocinaMarcador(); return; }
+  const n = parseFloat(txt);
+  if (!isFinite(n) || n < 0) { if (marca) marca.textContent = '⚠️'; return; }
+
+  const ins = cocLista.find(x => x.insumo_id === id);
+  const f = ins ? cocUnidad(ins).f : 1;
+  if (marca) marca.textContent = '…';
+  try {
+    await rpc('inv_app_auditoria_capturar', {
+      p_auditoria_id: cocConteo, p_insumo_id: id,
+      p_piezas_cerradas: 0, p_peso_g: null, p_cantidad_suelta: n * f
+    });
+    cocHechos[id] = true;
+    if (marca) marca.textContent = '✓';
+    campo.classList.add('coc-ok');
+    cocinaMarcador();
+  } catch (e) {
+    if (marca) marca.textContent = '⚠️';
+    avisar('No se guardó ' + (ins ? ins.nombre : '') + ': ' + e.message, true);
+  }
+}
+
+function cocinaMarcador() {
+  const z = document.getElementById('cocMarcador');
+  if (!z) return;
+  const hechos = Object.keys(cocHechos).length;
+  z.textContent = hechos + ' de ' + cocLista.length;
+  ZONAS_COCINA.forEach(([clave]) => {
+    const b = document.getElementById('cz_' + clave);
+    if (!b) return;
+    const arr = cocLista.filter(x => x.zona === clave);
+    const h = arr.filter(x => cocHechos[x.insumo_id]).length;
+    b.textContent = h + '/' + arr.length;
+  });
+  const btn = document.getElementById('cocBtnCerrar');
+  if (btn) btn.disabled = hechos === 0;
+}
+
+async function cocinaCerrar() {
+  const hechos = Object.keys(cocHechos).length;
+  const faltan = cocLista.length - hechos;
+  const msg = faltan > 0
+    ? 'Faltan ' + faltan + ' renglones sin contar. Esos se quedan como estaban '
+      + 'y no se corrigen.\n\n¿Cerrar de todos modos?'
+    : 'Se aplican los ' + cocLista.length + ' renglones. La diferencia contra lo que '
+      + 'el sistema creía queda registrada como el consumo del día.\n\n¿Cerrar y aplicar?';
+  if (!confirm(msg)) return;
+
+  verCargando('Cerrando el conteo...');
+  try {
+    await rpc('inv_app_auditoria_cerrar',
+      { p_auditoria_id: cocConteo, p_aplicar_ajuste: true });
+    try { await rpc('inv_app_auditoria_revisar', { p_auditoria_id: cocConteo }); } catch (e) {}
+    const res = await rpc('inv_app_auditoria_resultado', { p_auditoria_id: cocConteo });
+    cocConteo = null; cocHechos = {};
+    await cargarDatos();
+    mostrarVarianzaCocina(res || []);
+  } catch (e) { avisar(e.message, true); }
+  ocultarCargando();
+}
+
+function mostrarVarianzaCocina(res) {
+  const c = document.getElementById('contenido');
+  const filas = res.filter(d => Number(d.varianza_base || 0) !== 0);
+  c.innerHTML = `
+    <div class="caja-info" style="margin-bottom:12px">
+      ✅ <b>Conteo cerrado.</b> El inventario ya quedó con lo que se contó, y la
+      diferencia se guardó como el consumo del día.
+    </div>
+    ${!filas.length ? '<div class="vacio">Todo cuadró exacto.</div>' : `
+    <table class="tabla"><thead><tr>
+      <th>Insumo</th><th style="text-align:right">Creía</th>
+      <th style="text-align:right">Contó</th><th style="text-align:right">Consumo</th>
+    </tr></thead><tbody>
+    ${filas.map(d => `<tr>
+      <td>${esc(d.nombre || '')}</td>
+      <td style="text-align:right">${Number(d.cantidad_teorica_base || 0).toFixed(2)}</td>
+      <td style="text-align:right">${Number(d.cantidad_real_base || 0).toFixed(2)}</td>
+      <td style="text-align:right">${Math.abs(Number(d.varianza_base || 0)).toFixed(2)}</td>
+    </tr>`).join('')}
+    </tbody></table>`}
+    <button class="btn-sec" style="margin-top:14px"
+      onclick="irA('cocina',document.querySelector('[data-tab=cocina]'))">Volver a Cocina</button>`;
+}
+
+function vistaCocina() {
+  if (!cocConteo) {
+    return `
+      <div class="caja-info" style="margin-bottom:14px">
+        🍳 <b>Conteo de cocina.</b> Se cuenta en la noche, al cerrar. Chencho cuenta
+        y Carla rectifica. Va <b>a ciegas</b>: no verás lo que el sistema cree que hay,
+        para que el conteo no se contamine.
+      </div>
+      <div class="titulo-sec">¿Cuál conteo vas a hacer?</div>
+      <div class="rejilla">
+        <div class="tarjeta">
+          <div class="t-tit">🌙 El de cada noche</div>
+          <div class="t-sub">Solo lo que se acaba rápido.</div>
+          <button class="btn-pri" style="margin-top:8px"
+            onclick="cocinaEmpezar('DIARIO')">Empezar</button>
+        </div>
+        <div class="tarjeta">
+          <div class="t-tit">📅 El completo</div>
+          <div class="t-sub">Todo lo de cocina. Una vez por semana.</div>
+          <button class="btn-pri" style="margin-top:8px"
+            onclick="cocinaEmpezar('SEMANAL')">Empezar</button>
+        </div>
+      </div>`;
+  }
+
+  let h = `
+    <div class="aviso">🍳 Conteo de cocina #${cocConteo} —
+      <b id="cocMarcador">${Object.keys(cocHechos).length} de ${cocLista.length}</b> contados</div>
+    <div class="barra-sup">
+      <input class="buscar" placeholder="🔍 Buscar..." oninput="filtrarCocina()" id="buscaCoc">
+      ${esAdmin()
+        ? `<button class="btn-pri" id="cocBtnCerrar" onclick="cocinaCerrar()">Cerrar y aplicar</button>`
+        : `<button class="btn-sec" onclick="avisar('Listo. Avísale a Carla para que lo cierre.')">Terminé</button>`}
+    </div>
+    <div class="caja-info" style="margin-bottom:10px">
+      Anota <b>cuánto hay</b> de cada cosa, en la unidad que dice a la derecha.
+      Lo que no cuentes no se toca. Cada dato se guarda solo al salir del campo.
+    </div>
+    <div id="zonaCoc">`;
+
+  for (const [clave, titulo] of ZONAS_COCINA) {
+    const arr = cocLista.filter(x => x.zona === clave);
+    if (!arr.length) continue;
+    const hechos = arr.filter(x => cocHechos[x.insumo_id]).length;
+    h += `<div class="titulo-sec" style="display:flex;justify-content:space-between;align-items:center">
+            <span>${titulo}</span>
+            <span class="pastilla" id="cz_${clave}">${hechos}/${arr.length}</span>
+          </div>`;
+    if (clave === 'CARNES') {
+      h += `<div class="caja-info" style="margin-bottom:8px;font-size:12px">
+        Igual que la sección Corte: se cuentan las piezas que de verdad hay.
+        Al cerrar, el sistema las compara contra lo que creía y contra la venta del día.
+      </div>`;
+    }
+    h += '<div class="coc-lista">';
+    for (const i of arr) {
+      const v = cocUnidad(i);
+      h += `<div class="coc-fila" data-n="${esc((i.nombre||'').toLowerCase())}">
+        <div class="coc-nom">${esc(i.nombre)}
+          ${i.presentacion ? `<small>${esc(i.presentacion)}</small>` : ''}</div>
+        <div class="coc-cap">
+          <input class="inp-chico${cocHechos[i.insumo_id] ? ' coc-ok' : ''}" type="number"
+                 id="cc_${i.insumo_id}" placeholder="0" min="0" step="any"
+                 inputmode="decimal" onchange="cocinaCapturar(${i.insumo_id})"
+                 aria-label="Cuánto hay de ${esc(i.nombre)}">
+          <span class="coc-u">${esc(v.u)}</span>
+          <span class="coc-ok-m" id="cm_${i.insumo_id}">${cocHechos[i.insumo_id] ? '✓' : ''}</span>
+        </div>
+      </div>`;
+    }
+    h += '</div>';
+  }
+  return h + '</div>';
+}
+
+/* Igual que en auditoria: esconde filas, nunca las redibuja, para no
+   borrar lo que el empleado ya tecleo y todavia no se guarda. */
+function filtrarCocina() {
+  const txt = (document.getElementById('buscaCoc')?.value || '').toLowerCase();
+  document.querySelectorAll('#zonaCoc .coc-fila').forEach(f => {
+    f.style.display = f.getAttribute('data-n').includes(txt) ? '' : 'none';
+  });
 }
 
 /* ======================================================================
