@@ -154,6 +154,15 @@ main{padding:14px;max-width:1000px;margin:0 auto}
   padding:9px 4px;border:1px dashed var(--border2);border-radius:var(--rsm);
   background:transparent;color:var(--muted)}
 .coc-ayer.vacio{color:var(--dim)}
+/* El cierre, al final de la lista. Se le da aire arriba a proposito: quien
+   baja 174 renglones tiene que topárselo, no pasarlo de largo. */
+.btn-grande{width:100%;padding:16px 18px;font-size:15.5px;white-space:normal}
+.coc-cierre{margin:26px 0 10px;padding:16px 14px 14px;background:var(--bg2);
+  border:1px solid var(--accent);border-radius:var(--r);text-align:center}
+.coc-cierre-n{font-size:13px;color:var(--muted);margin-bottom:11px}
+.coc-cierre-n b{color:var(--accent);font-variant-numeric:tabular-nums}
+.coc-cierre-p{font-size:11.5px;color:var(--dim);margin-top:9px;line-height:1.45}
+.btn-pri.btn-grande:disabled{opacity:.4;border-color:var(--border2);color:var(--muted)}
 .coc-cab{display:flex;justify-content:flex-end;gap:6px;align-items:center;
   padding:0 13px 5px;font-size:10px;color:var(--dim);letter-spacing:.4px;
   text-transform:uppercase}
@@ -867,7 +876,6 @@ async function cocinaArrancar() {
   let crudos = null;
   if (e && e.hay_abierto) {
     cocConteo = e.auditoria_id;
-    cocModo   = (e.tipo === 'SEMANAL') ? 'SEMANAL' : 'DIARIO';
     crudos    = e.ya_capturado || {};
   } else {
     cocConteo = null;
@@ -934,13 +942,19 @@ function cocAyerEtiqueta() {
   return cocAyerInfo.fecha ? cocAyerInfo.fecha.slice(5) : 'antes';
 }
 
-async function cocinaEmpezar(modo) {
-  cocModo = modo;
+/* UNA SOLA LISTA, LA COMPLETA. Arturo, 1 nov: "esto esta demas, ya tenemos la
+   lista completa, esa sera siempre."
+   Antes se preguntaba entre el conteo corto y el completo. Esa pregunta ya no
+   tiene respuesta posible: la lista completa tambien es el check list del dia
+   del chef, asi que elegir el corto solo serviria para contar de menos.
+   El tipo sigue siendo CIERRE_TURNO porque eso es: el conteo de la noche.
+   Lo que cambio es QUE se cuenta, no cuando. */
+async function cocinaEmpezar() {
+  cocModo = 'SEMANAL';           // 'SEMANAL' = la lista completa
   verCargando('Abriendo el conteo...');
   try {
-    const tipo = (modo === 'SEMANAL') ? 'SEMANAL' : 'CIERRE_TURNO';
     const id = await rpc('inv_app_auditoria_abrir',
-      { p_ubicacion: 'COCINA', p_tipo: tipo });
+      { p_ubicacion: 'COCINA', p_tipo: 'CIERRE_TURNO' });
     cocConteo = (id && typeof id === 'object') ? id.id : id;
     cocHechos = {};
     cocLista = await rpc('inv_app_lista_conteo',
@@ -1004,6 +1018,10 @@ function cocinaMarcador() {
   if (!z) return;
   const hechos = Object.keys(cocHechos).length;
   z.textContent = hechos + ' de ' + cocLista.length;
+  /* El mismo marcador abajo, junto al boton de guardar: ahi es donde se decide
+     si ya se termino, y nadie va a subir hasta arriba a comprobarlo. */
+  const z2 = document.getElementById('cocMarcador2');
+  if (z2) z2.textContent = hechos + ' de ' + cocLista.length;
   zonasDeLaLista().forEach((clave) => {
     const b = document.getElementById('cz_' + claveId(clave));
     if (!b) return;
@@ -1074,20 +1092,12 @@ function vistaCocina() {
       ${puedeMover() ? `<div class="porc-nav" style="margin-bottom:6px">
         <button class="btn-sec" onclick="cocHistIr(null)">📅 Ver el historial — ayer contra hoy</button>
       </div>` : ''}
-      <div class="titulo-sec">¿Cuál conteo vas a hacer?</div>
-      <div class="rejilla">
-        <div class="tarjeta">
-          <div class="t-tit">🌙 El de cada noche</div>
-          <div class="t-sub">Solo lo que se acaba rápido.</div>
-          <button class="btn-pri" style="margin-top:8px"
-            onclick="cocinaEmpezar('DIARIO')">Empezar</button>
-        </div>
-        <div class="tarjeta">
-          <div class="t-tit">📅 El completo</div>
-          <div class="t-sub">Todo lo de cocina. Una vez por semana.</div>
-          <button class="btn-pri" style="margin-top:8px"
-            onclick="cocinaEmpezar('SEMANAL')">Empezar</button>
-        </div>
+      <div class="tarjeta">
+        <div class="t-tit">🌙 El conteo de la noche</div>
+        <div class="t-sub">La lista completa de cocina, la misma siempre.
+          También sirve de check list del día.</div>
+        <button class="btn-pri btn-grande" style="margin-top:10px"
+          onclick="cocinaEmpezar()">Empezar el conteo</button>
       </div>`;
   }
 
@@ -1098,9 +1108,6 @@ function vistaCocina() {
       <input class="buscar" placeholder="🔍 Buscar..." oninput="filtrarCocina()" id="buscaCoc">
       ${puedeMover()
         ? `<button class="btn-sec" onclick="cocHistIr(null)">📅 Historial</button>` : ''}
-      ${esAdmin()
-        ? `<button class="btn-pri" id="cocBtnCerrar" onclick="cocinaCerrar()">Cerrar y aplicar</button>`
-        : `<button class="btn-sec" onclick="avisar('Listo. Avísale a Carla para que lo cierre.')">Terminé</button>`}
     </div>
     <div class="caja-info" style="margin-bottom:10px">
       Anota <b>cuánto hay</b> de cada cosa, en la unidad que dice a la derecha.
@@ -1171,7 +1178,29 @@ function vistaCocina() {
     }
     h += '</div>';
   }
-  return h + '</div>';
+
+  /* EL BOTON VA AL FINAL, Y GRANDE. Arturo, 1 nov: "ese boton deberia ir al
+     final de todo, si no se le va a olvidar apretarlo cuando termine el
+     conteo; que sea lo ultimo."
+     Arriba era facil de ignorar mientras se baja por 174 renglones, y un
+     conteo que nunca se cierra no ajusta nada: es como no haberlo hecho.
+     Aqui se lo topa de frente justo cuando acaba. */
+  h += `</div>
+    <div class="coc-cierre">
+      <div class="coc-cierre-n"><b id="cocMarcador2">${
+        Object.keys(cocHechos).length} de ${cocLista.length}</b> contados</div>
+      ${esAdmin()
+        ? `<button class="btn-pri btn-grande" id="cocBtnCerrar"
+             ${Object.keys(cocHechos).length ? '' : 'disabled'}
+             onclick="cocinaCerrar()">✅ Terminé — guardar el conteo</button>
+           <div class="coc-cierre-p">Esto cierra el conteo y deja el inventario
+             con lo que acabas de contar. Lo que no se contó se queda igual.</div>`
+        : `<button class="btn-pri btn-grande"
+             onclick="avisar('Listo. Avísale a Carla para que lo cierre.')">✅ Terminé</button>
+           <div class="coc-cierre-p">Cada número ya se guardó solo. Avísale a
+             Carla para que lo cierre.</div>`}
+    </div>`;
+  return h;
 }
 
 /* Igual que en auditoria: esconde filas, nunca las redibuja, para no
