@@ -156,6 +156,34 @@ main{padding:14px;max-width:1000px;margin:0 auto}
 .coc-cap .inp-chico.coc-ok{border-color:rgba(var(--green-sv),.5);background:rgba(var(--green-sv),.07)}
 .coc-u{font-size:11px;color:var(--dim);width:24px}
 .coc-ok-m{font-size:13px;color:var(--green);width:16px;text-align:center}
+/* --- Porcionar --- */
+.porc-caja{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);padding:13px 14px;margin-bottom:14px}
+.porc-tit{font-weight:600;color:var(--accent);font-size:12.5px;margin-bottom:10px;letter-spacing:.3px}
+.porc-fila{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center}
+.porc-pie{display:block;color:var(--dim);font-size:10.5px;margin-top:9px;line-height:1.5}
+.porc-caja .coc-lista{margin-bottom:0;background:var(--bg3)}
+/* "porciones" no cabe en los 24px que le bastan a "pz". Y las flechitas del
+   campo numerico le comen un digito al numero: en un telefono se teclea, no
+   se sube de uno en uno. */
+.porc-caja .coc-u,.porc-fila .coc-u{width:auto;min-width:46px;font-size:10.5px;
+line-height:1.25;white-space:normal}
+.porc-caja .inp-chico,.porc-fila .inp-chico{width:64px}
+.porc-caja input[type=number]::-webkit-inner-spin-button,
+.porc-caja input[type=number]::-webkit-outer-spin-button,
+.porc-fila input[type=number]::-webkit-inner-spin-button,
+.porc-fila input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.porc-caja input[type=number],.porc-fila input[type=number]{-moz-appearance:textfield;appearance:textfield}
+.porc-cuadre{margin-top:11px;border:1px solid var(--border);border-radius:var(--rsm);padding:10px 12px;font-size:12.5px;line-height:1.55;color:var(--muted);background:rgba(255,255,255,.025);font-variant-numeric:tabular-nums}
+.porc-bien{border-color:rgba(var(--green-sv),.35);background:rgba(var(--green-sv),.07);color:var(--green)}
+.porc-tibio{border-color:rgba(var(--orange-sv),.35);background:rgba(var(--orange-sv),.07);color:var(--orange)}
+.porc-mal{border-color:rgba(var(--red-sv),.35);background:rgba(var(--red-sv),.07);color:var(--red)}
+.porc-nav{display:flex;align-items:center;justify-content:space-between;gap:9px;margin-bottom:12px}
+.porc-nav .btn-sec{font-size:11.5px;padding:7px 10px;white-space:nowrap}
+.porc-nav .btn-sec:disabled{opacity:.35}
+.porc-dia{font-weight:600;color:var(--accent);font-size:14px;font-variant-numeric:tabular-nums;white-space:nowrap}
+.porc-dias{display:flex;gap:6px;overflow-x:auto;padding-bottom:9px;margin-bottom:5px}
+.porc-pill{background:none;color:var(--muted);cursor:pointer;font-variant-numeric:tabular-nums}
+.porc-pill.on{background:rgba(var(--accent-sv),.14);color:var(--accent);border-color:rgba(var(--accent-sv),.4)}
 
 /* ---------- MODAL ---------- */
 .capa{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:200;display:none;align-items:flex-end;justify-content:center}
@@ -252,6 +280,7 @@ main{padding:14px;max-width:1000px;margin:0 auto}
     <div class="pestanas">
       <button class="pestana on" data-tab="existencias" onclick="irA('existencias',this)">📦 Existencias</button>
       <button class="pestana" data-tab="cocina"     onclick="irA('cocina',this)">🍳 Cocina</button>
+      <button class="pestana" data-tab="porcionar"  onclick="irA('porcionar',this)">🔪 Porcionar</button>
       <button class="pestana" data-tab="catalogo"   onclick="irA('catalogo',this)">📋 Catálogo</button>
       <button class="pestana" data-tab="auditoria"  onclick="irA('auditoria',this)">⚖️ Auditoría</button>
       <button class="pestana" data-tab="movimientos" onclick="irA('movimientos',this)">🔄 Movimientos</button>
@@ -577,6 +606,12 @@ async function irA(t, el) {
     try { await cocinaArrancar(); } catch(e){ avisar(e.message, true); }
     ocultarCargando();
   }
+  if (t === 'porcionar') {
+    verCargando('Cargando las piezas...');
+    porcVista = 'capturar'; porcPieza = null;
+    try { await porcArrancar(); } catch(e){ avisar(e.message, true); }
+    ocultarCargando();
+  }
   pintar();
 }
 
@@ -590,10 +625,12 @@ function ajustarPestanasPorNivel() {
   const soloCocina = esCocinero();
   document.querySelectorAll('.pestana').forEach(p => {
     const t = p.getAttribute('data-tab');
+    /* Chencho ve Cocina y Porcionar: el porciona, el lo captura. Lo demas no. */
+    const deCocina = (t === 'cocina' || t === 'porcionar');
     let ver;
-    if (soloCocina)          ver = (t === 'cocina');   // Chencho: nada mas Cocina
-    else if (t === 'cocina') ver = puedeMover();       // Cocina: encargado o admin
-    else                     ver = true;               // lo demas, como siempre
+    if (soloCocina)    ver = deCocina;
+    else if (deCocina) ver = puedeMover();             // encargado o admin
+    else               ver = true;                     // lo demas, como siempre
     p.style.display = ver ? '' : 'none';
     p.classList.remove('on');
   });
@@ -606,6 +643,7 @@ function pintar() {
   const c = document.getElementById('contenido');
   if (tab === 'existencias')      c.innerHTML = vistaExistencias();
   else if (tab === 'cocina')      c.innerHTML = vistaCocina();
+  else if (tab === 'porcionar')   c.innerHTML = vistaPorcionar();
   else if (tab === 'catalogo')    c.innerHTML = vistaCatalogo();
   else if (tab === 'auditoria')   c.innerHTML = vistaAuditoria();
   else if (tab === 'movimientos') c.innerHTML = vistaMovimientos();
@@ -768,7 +806,12 @@ function tarjetaCatalogo(i) {
    Lo que no viene en piezas (molida, chambarete, falda) si va por peso,
    y en la unidad del cocinero: kilos y litros, no gramos ni mililitros. */
 function cocUnidad(i) {
-  if (i.gramos_por_pieza)     return { u: 'pz', f: 1, porPieza: true };
+  /* Si ya se mide en piezas, una pieza vale UNA. gramos_por_pieza es factor
+     de conversion, no el peso de lo que se sirve: confundirlos multiplicaba
+     el conteo por cientos. Ese peso ahora vive en gramos_por_porcion. */
+  if (i.unidad_base === 'PZA') return { u: 'pz', f: 1, porPieza: true, gr: 1 };
+  if (i.gramos_por_pieza)      return { u: 'pz', f: 1, porPieza: true,
+                                        gr: Number(i.gramos_por_pieza) };
   if (i.unidad_base === 'G')  return { u: 'kg', f: 1000 };
   if (i.unidad_base === 'ML') return { u: 'L',  f: 1000 };
   return { u: (i.unidad_base || 'pz').toLowerCase(), f: 1 };
@@ -850,7 +893,10 @@ async function cocinaCapturar(id) {
        Redondear aqui habria convertido 23.5 en 24 sin avisarle a nadie. */
     let piezas = 0, suelto = 0;
     if (v.porPieza) {
-      const gr = Number(ins.gramos_por_pieza) || 1;
+      /* Cuanto vale UNA pieza lo decide cocUnidad, que es el unico lugar que
+         sabe distinguir "se mide en piezas" de "se mide en gramos y una pieza
+         pesa tanto". Leer gramos_por_pieza aqui funcionaba de milagro. */
+      const gr = Number(v.gr) || 1;
       piezas = Math.floor(n);
       suelto = Math.round((n - piezas) * gr * 1000) / 1000;
     } else {
@@ -1027,6 +1073,452 @@ function filtrarCocina() {
   document.querySelectorAll('#zonaCoc .coc-fila').forEach(f => {
     f.style.display = f.getAttribute('data-n').includes(txt) ? '' : 'none';
   });
+}
+
+/* ======================================================================
+   PORCIONAR  (Arturo, 31 oct 2026)
+
+   "le traje a chencho de la casa, 2 pulpos, 3 arracheras y 1 pieza de rib
+    nacional o cab, ahi anote como la porciono y tu lo sumes a lo que ya
+    tenia, pero dejando un historial, poder navegar hacia dias anteriores."
+
+   Son dos cosas en una pantalla:
+
+   1) CAPTURAR. Baja una pieza entera de la casa, se corta, y nacen las
+      porciones. El sistema descuenta la pieza y suma las porciones a lo que
+      cocina ya tenia. No hay que hacer la resta a mano.
+
+   2) HISTORIAL. Navegable por dia, porque es para lo que lo pidio: cuando
+      alguien dice otra cantidad, se abre el dia y se ve que se capturo.
+      Las flechas saltan a dias CON movimiento, no de uno en uno topandose
+      con dias vacios.
+
+   El marcador de gramos va en vivo mientras escribe. Esa es la parte que de
+   verdad sirve: una pieza de rib son 8600 g y si las porciones anotadas
+   suman 3000, faltan 5600 g de hueso y grasa que nadie ha explicado. Ese
+   numero es el rendimiento real, y hoy no existe en ningun lado.
+   ====================================================================== */
+
+let porcOpts  = null;   // las piezas que se pueden porcionar, con sus salidas
+let porcPieza = null;   // la que se esta capturando ahorita
+let porcVista = 'capturar';
+let porcHist  = null;   // lo que devolvio el historial
+let porcDia   = null;   // el dia que se esta viendo
+
+/* Como se captura cada renglon y cuanto pesa una unidad de lo capturado.
+     f = por cuanto se multiplica para llegar a la unidad que guarda la base
+     g = cuantos gramos vale UNA de las que se teclean (para el marcador)
+   Se separan a proposito: en piezas las dos valen lo mismo, pero en un
+   insumo medido en piezas f es 1 (la base ya son piezas) y g es el peso de
+   la porcion, que es otra cosa. Confundirlos fue justo el bug de hoy. */
+function porcUnidad(x, esEntrada) {
+  const gpp = Number(x.gramos_por_pieza) || 0;
+  const gcu = Number(x.gramos_c_u != null ? x.gramos_c_u : x.gramos_por_porcion) || 0;
+  /* Lo que baja de la casa son PIEZAS enteras; lo que sale del corte son
+     PORCIONES. Es la misma cuenta pero no la misma palabra, y en la pantalla
+     la palabra importa: "2 porciones de pechuga" no es lo que bajo. */
+  if (x.unidad === 'PZA')  return { etq: esEntrada ? 'piezas' : 'porciones', f: 1, g: gcu };
+  if (gpp > 0)             return { etq: 'piezas',    f: gpp,  g: gpp };
+  if (x.unidad === 'G')    return { etq: 'kg',        f: 1000, g: 1000 };
+  if (x.unidad === 'ML')   return { etq: 'L',         f: 1000, g: 1000 };
+  return { etq: 'unidades', f: 1, g: gcu };
+}
+
+/* La merma se pesa, no se cuenta: siempre va en peso. */
+function porcUnidadMerma(e) {
+  return e.unidad === 'G' || e.unidad === 'ML'
+    ? { etq: 'kg', f: 1000, g: 1000 }
+    : { etq: 'unidades', f: 1, g: 0 };
+}
+
+/* El historial lo lee gente, no la base: "8,600 G" se escribe 8.6 kg, y una
+   merma sin unidad hereda la de la pieza en vez de quedar como un numero
+   pelon que nadie sabe si son gramos o piezas. */
+function porcCant(n, unidad) {
+  const v = Number(n) || 0;
+  if (unidad === 'G' || unidad === 'ML') {
+    const u = unidad === 'G' ? 'kg' : 'L';
+    return Math.abs(v) >= 1000
+      ? (v / 1000).toFixed(2).replace(/\.?0+$/, '') + ' ' + u
+      : Math.round(v) + (unidad === 'G' ? ' g' : ' ml');
+  }
+  const txt = v.toLocaleString('es-MX', { maximumFractionDigits: 2 });
+  return txt + (unidad === 'PZA' ? ' pz' : '');
+}
+
+function gBonito(g) {
+  const n = Number(g) || 0;
+  if (Math.abs(n) >= 1000) return (n / 1000).toFixed(2).replace(/\.00$/, '') + ' kg';
+  return Math.round(n) + ' g';
+}
+
+async function porcArrancar() {
+  if (!porcOpts) porcOpts = await rpc('inv_app_porcionar_opciones') || [];
+}
+
+async function porcAbrirHistorial(fecha) {
+  porcHist  = await rpc('inv_app_porcionar_historial', { p_fecha: fecha || null });
+  porcDia   = porcHist ? porcHist.fecha : null;
+  porcVista = 'historial';
+  pintar();
+}
+
+async function porcIrDia(fecha) {
+  if (!fecha) return;
+  verCargando('Buscando ese día...');
+  try { await porcAbrirHistorial(fecha); } catch (e) { avisar(e.message, true); }
+  ocultarCargando();
+}
+
+function porcVolverCaptura() { porcVista = 'capturar'; porcPieza = null; pintar(); }
+
+function porcElegir(id) {
+  porcPieza = (porcOpts || []).find(p => Number(p.insumo_id) === Number(id)) || null;
+  porcVista = 'capturar';
+  pintar();
+}
+
+/* El marcador en vivo. Se recalcula a cada tecla y no guarda nada: nomas
+   dice como va la cuenta, para que quien corta se entere ahi mismo de que
+   le faltan 5 kilos por explicar y no tres semanas despues. */
+function porcRecalcular() {
+  if (!porcPieza) return;
+  const e  = porcPieza;
+  const ue = porcUnidad(e, true);
+  const nEnt = Number(document.getElementById('porcEntra')?.value || 0);
+  const gEnt = nEnt * ue.g;
+
+  let gSal = 0, faltaPeso = [];
+  (e.salidas || []).forEach(s => {
+    const n = Number(document.getElementById('ps_' + s.insumo_id)?.value || 0);
+    if (!n) return;
+    const us = porcUnidad(s);
+    if (!us.g) faltaPeso.push(s.nombre);
+    gSal += n * us.g;
+  });
+  const um = porcUnidadMerma(e);
+  gSal += Number(document.getElementById('porcMerma')?.value || 0) * um.g;
+
+  const z = document.getElementById('porcCuadre');
+  if (!z) return;
+
+  if (!nEnt) {
+    z.className = 'porc-cuadre';
+    z.innerHTML = 'Pon cuánto bajaste y la cuenta aparece aquí.';
+    return;
+  }
+  /* Hay dos razones distintas por las que la cuenta de gramos no se puede hacer,
+     y confundirlas asusta de a gratis:
+       - La pieza SE CUENTA EN PIEZAS a propósito (el hueso de tuétano: el
+         carnicero lo vende por pieza y así lo cuenta Carla). Ahí no falta nada
+         — un hueso da 4 pedacitos y ese ya es el rendimiento completo.
+       - La pieza se mide en peso pero nadie dijo cuánto pesa una. Ahí sí falta. */
+  const todoEnPiezas = e.unidad === 'PZA'
+    && (e.salidas || []).every(s => s.unidad === 'PZA');
+  if (todoEnPiezas) {
+    const n = (e.salidas || []).reduce((a, s) =>
+      a + Number(document.getElementById('ps_' + s.insumo_id)?.value || 0), 0);
+    z.className = 'porc-cuadre';
+    z.innerHTML = 'Se cuenta por pieza, no por peso: <b>' + nEnt
+      + (nEnt === 1 ? ' pieza' : ' piezas') + '</b> → <b>' + n
+      + (n === 1 ? ' porción' : ' porciones') + '</b>.';
+    return;
+  }
+  if (!ue.g) {
+    z.className = 'porc-cuadre porc-tibio';
+    z.innerHTML = '⚠️ No se puede revisar el rendimiento: falta decir cuánto pesa '
+      + 'una pieza de <b>' + esc(e.nombre) + '</b>. Se guarda igual, pero sin la cuenta.';
+    return;
+  }
+  if (faltaPeso.length) {
+    z.className = 'porc-cuadre porc-tibio';
+    z.innerHTML = '⚠️ No se puede revisar el rendimiento: falta decir cuánto pesa '
+      + 'una porción de <b>' + faltaPeso.map(esc).join(', ') + '</b>. '
+      + 'Se guarda igual, pero sin la cuenta.';
+    return;
+  }
+  const hueco = gEnt - gSal;
+  const tol   = Math.max(gEnt * 0.01, 50);
+  const pct   = Math.round(1000 * gSal / gEnt) / 10;
+
+  if (Math.abs(hueco) <= tol) {
+    z.className = 'porc-cuadre porc-bien';
+    z.innerHTML = '✅ Cuadra. Entraron <b>' + gBonito(gEnt) + '</b> y lo anotado suma <b>'
+      + gBonito(gSal) + '</b> — se aprovechó el <b>' + pct + '%</b>.';
+  } else if (hueco > 0) {
+    z.className = 'porc-cuadre porc-tibio';
+    z.innerHTML = 'Entraron <b>' + gBonito(gEnt) + '</b> y llevas <b>' + gBonito(gSal)
+      + '</b>. Faltan <b>' + gBonito(hueco) + '</b> por explicar — si es hueso o grasa, '
+      + 'ponlo en Merma.';
+  } else {
+    z.className = 'porc-cuadre porc-mal';
+    z.innerHTML = '⚠️ Lo anotado (<b>' + gBonito(gSal) + '</b>) pasa de lo que entró (<b>'
+      + gBonito(gEnt) + '</b>) por <b>' + gBonito(-hueco) + '</b>. Revisa un número.';
+  }
+}
+
+async function porcGuardar() {
+  if (!porcPieza) return;
+  const e = porcPieza, ue = porcUnidad(e, true);
+  const nEnt = Number(document.getElementById('porcEntra').value || 0);
+  if (!nEnt || nEnt <= 0) { avisar('Pon cuántas bajaste de la casa.', true); return; }
+
+  const salidas = [];
+  (e.salidas || []).forEach(s => {
+    const n = Number(document.getElementById('ps_' + s.insumo_id)?.value || 0);
+    if (!n) return;                       // no anotado no es cero: es no anotado
+    const us = porcUnidad(s);
+    salidas.push({
+      insumo_id: Number(s.insumo_id),
+      concepto:  s.nombre,
+      cantidad:  n * us.f,
+      piezas:    us.etq === 'kg' || us.etq === 'L' ? null : Math.round(n)
+    });
+  });
+  const merma = Number(document.getElementById('porcMerma')?.value || 0);
+  if (merma > 0) {
+    salidas.push({ concepto: 'MERMA', cantidad: merma * porcUnidadMerma(e).f });
+  }
+  if (!salidas.length) { avisar('Anota al menos una cosa que salió de la pieza.', true); return; }
+
+  /* La entrada se manda en la unidad que guarda la base. En piezas eso es
+     piezas; en gramos hay que multiplicar por lo que pesa una, porque nadie
+     va a teclear 8600 cuando bajo una sola pieza de rib. */
+  const cantBase = nEnt * ue.f;
+  const piezasEnt = ue.etq === 'piezas' || ue.etq === 'porciones'
+    ? Math.round(nEnt) : null;
+
+  verCargando('Guardando el porcionado...');
+  try {
+    const r = await rpc('inv_app_porcionar', {
+      p_insumo_entrada:   Number(e.insumo_id),
+      p_cantidad_entrada: cantBase,
+      p_salidas:          salidas,
+      p_piezas_entrada:   piezasEnt,
+      p_nota:             document.getElementById('porcNota')?.value || null
+    });
+    porcOpts = null;
+    await porcArrancar();
+    await cargarDatos();
+    porcPieza = null;
+    await porcAbrirHistorial(null);
+    avisar((r && r.mensaje) ? r.mensaje : 'Porcionado guardado ✓');
+  } catch (err) { avisar(err.message, true); }
+  ocultarCargando();
+}
+
+function vistaPorcionar() {
+  if (porcVista === 'historial') return vistaPorcHistorial();
+  if (porcPieza)                 return vistaPorcCaptura();
+
+  const lista = porcOpts || [];
+  return `
+    <div class="caja-info" style="margin-bottom:14px">
+      🔪 <b>Porcionar.</b> Cuando baja una pieza entera de la casa y cocina la corta.
+      Anota qué bajó y en qué se convirtió: el sistema descuenta la pieza y le
+      <b>suma las porciones a lo que ya tenía</b>, sin que nadie haga la resta.
+    </div>
+    <div class="barra-sup">
+      <input class="buscar" placeholder="🔍 Buscar pieza..." id="buscaPorc"
+             oninput="filtrarPorc()">
+      <button class="btn-sec" onclick="porcIrDia(null)">📅 Ver historial</button>
+    </div>
+    ${!lista.length ? `<div class="vacio">
+        Todavía no hay piezas con despiece configurado.
+      </div>` : `
+    <div class="titulo-sec">¿Qué pieza bajó de la casa?</div>
+    <div class="rejilla" id="zonaPorc">
+      ${lista.map(p => {
+        const u = porcUnidad(p, true);
+        const casa   = Number(p.hay_en_casa || 0);
+        const cocina = Number(p.hay_en_cocina || 0);
+        const enCasa = u.f > 1 ? (casa / u.f) : casa;
+        const enCoc  = u.f > 1 ? (cocina / u.f) : cocina;
+        const nSal   = (p.salidas || []).length;
+        return `<div class="tarjeta porc-card" data-n="${esc((p.nombre||'').toLowerCase())}">
+          <div class="t-tit">${esc(p.nombre)}</div>
+          <div class="t-sub">
+            En la casa: <b>${enCasa.toFixed(enCasa % 1 ? 2 : 0)}</b> ·
+            en cocina: <b>${enCoc.toFixed(enCoc % 1 ? 2 : 0)}</b> ${esc(u.etq)}
+            <br><small>se corta en ${nSal} cosa${nSal === 1 ? '' : 's'}</small>
+          </div>
+          <button class="btn-pri" style="margin-top:8px"
+            onclick="porcElegir(${p.insumo_id})">Porcionar</button>
+        </div>`;
+      }).join('')}
+    </div>`}`;
+}
+
+function filtrarPorc() {
+  const txt = (document.getElementById('buscaPorc')?.value || '').toLowerCase();
+  document.querySelectorAll('#zonaPorc .porc-card').forEach(f => {
+    f.style.display = f.getAttribute('data-n').includes(txt) ? '' : 'none';
+  });
+}
+
+function vistaPorcCaptura() {
+  const e  = porcPieza;
+  const ue = porcUnidad(e, true);
+  const um = porcUnidadMerma(e);
+  const casa   = Number(e.hay_en_casa || 0);
+  const cocina = Number(e.hay_en_cocina || 0);
+  const enCasa = ue.f > 1 ? (casa / ue.f) : casa;
+  const enCoc  = ue.f > 1 ? (cocina / ue.f) : cocina;
+
+  return `
+    <div class="aviso">🔪 Porcionando <b>${esc(e.nombre)}</b></div>
+
+    <div class="porc-caja">
+      <div class="porc-tit">1 · ¿Cuánto bajó de la casa?</div>
+      <div class="porc-fila">
+        <div class="coc-nom">${esc(e.nombre)}
+          <small>hay ${enCasa.toFixed(enCasa % 1 ? 2 : 0)} en la casa y
+                 ${enCoc.toFixed(enCoc % 1 ? 2 : 0)} ya en cocina${
+                 ue.g ? ' · cada una pesa ' + gBonito(ue.g) : ''}</small></div>
+        <div class="coc-cap">
+          <input class="inp-chico" type="number" id="porcEntra" placeholder="0"
+                 min="0" step="any" inputmode="decimal"
+                 oninput="porcRecalcular()" aria-label="Cuántas bajaron">
+          <span class="coc-u">${esc(ue.etq)}</span>
+        </div>
+      </div>
+      <small class="porc-pie">Si la pieza ya estaba en la cocina no se inventa un
+        traspaso: se usa la que ya estaba y el mensaje te lo dice.</small>
+    </div>
+
+    <div class="porc-caja">
+      <div class="porc-tit">2 · ¿En qué se convirtió?</div>
+      <div class="coc-lista">
+        ${(e.salidas || []).map(s => {
+          const us = porcUnidad(s);
+          return `<div class="coc-fila">
+            <div class="coc-nom">${esc(s.nombre)}
+              <small>${us.g ? 'cada una pesa ' + gBonito(us.g)
+                            : '⚠️ falta decir cuánto pesa una'}${
+                       s.nota ? ' · ' + esc(s.nota) : ''}</small></div>
+            <div class="coc-cap">
+              <input class="inp-chico" type="number" id="ps_${s.insumo_id}"
+                     placeholder="0" min="0" step="any" inputmode="decimal"
+                     oninput="porcRecalcular()"
+                     aria-label="Cuántas salieron de ${esc(s.nombre)}">
+              <span class="coc-u">${esc(us.etq)}</span>
+            </div>
+          </div>`;
+        }).join('')}
+        <div class="coc-fila">
+          <div class="coc-nom">Merma
+            <small>hueso, grasa, recortes — lo que no se vende</small></div>
+          <div class="coc-cap">
+            <input class="inp-chico" type="number" id="porcMerma" placeholder="0"
+                   min="0" step="any" inputmode="decimal"
+                   oninput="porcRecalcular()" aria-label="Merma">
+            <span class="coc-u">${esc(um.etq)}</span>
+          </div>
+        </div>
+      </div>
+      <div class="porc-cuadre" id="porcCuadre">Pon cuánto bajaste y la cuenta
+        aparece aquí.</div>
+      ${(() => {
+        /* Se avisa DESDE QUE SE ABRE, no hasta que ya capturó: a estos
+           renglones les falta su peso, así que si los usa, el rendimiento de
+           esta pieza no se va a poder calcular. Mejor que lo sepa antes. */
+        /* Si todo se cuenta en piezas no falta ningún peso: así se lleva a
+           propósito. El aviso es sólo para lo que sí se mide en báscula. */
+        if (e.unidad === 'PZA' && (e.salidas || []).every(s => s.unidad === 'PZA')) return '';
+        const sin = (e.salidas || []).filter(s => !porcUnidad(s).g).map(s => s.nombre);
+        if (!sin.length && ue.g) return '';
+        const cosas = sin.slice();
+        if (!ue.g) cosas.unshift('la pieza entera');
+        return `<small class="porc-pie">⚠️ Falta decir cuánto pesa
+          <b>${cosas.map(esc).join('</b>, <b>')}</b>. Se guarda igual y el
+          inventario queda bien, pero el rendimiento de esta pieza no se podrá
+          calcular hasta que ese dato exista.</small>`;
+      })()}
+    </div>
+
+    <div class="porc-caja">
+      <div class="porc-tit">3 · ¿Algo que anotar?</div>
+      <input class="buscar" id="porcNota" style="width:100%"
+             placeholder="Opcional: la pieza venía chica, se cortó distinto...">
+    </div>
+
+    <div class="barra-sup" style="margin-top:14px">
+      <button class="btn-sec" onclick="porcVolverCaptura()">Cancelar</button>
+      <button class="btn-pri" onclick="porcGuardar()">Guardar porcionado</button>
+    </div>`;
+}
+
+function vistaPorcHistorial() {
+  const h = porcHist || {};
+  const cortes = h.cortes || [];
+  const dias   = h.dias_con_movimiento || [];
+
+  return `
+    <div class="caja-info" style="margin-bottom:12px">
+      📅 <b>Historial de porcionado.</b> Para cuando alguien diga otra cantidad:
+      aquí se abre el día y se ve qué se capturó, quién y a qué hora.
+    </div>
+
+    <div class="porc-nav">
+      <button class="btn-sec" ${h.dia_anterior ? '' : 'disabled'}
+        onclick="porcIrDia('${h.dia_anterior || ''}')">◀ ${
+          h.dia_anterior ? esc(h.dia_anterior) : 'no hay antes'}</button>
+      <div class="porc-dia">${esc(h.fecha || '')}</div>
+      <button class="btn-sec" ${h.dia_siguiente ? '' : 'disabled'}
+        onclick="porcIrDia('${h.dia_siguiente || ''}')">${
+          h.dia_siguiente ? esc(h.dia_siguiente) : 'no hay después'} ▶</button>
+    </div>
+
+    ${dias.length ? `<div class="porc-dias">
+      ${dias.map(d => `<button class="pastilla porc-pill${
+          d === h.fecha ? ' on' : ''}" onclick="porcIrDia('${d}')">${esc(d)}</button>`).join('')}
+    </div>` : ''}
+
+    ${!cortes.length ? `<div class="vacio">Ese día no se porcionó nada.</div>` : `
+    ${cortes.map(c => {
+      const pct = c.aprovechado_pct;
+      const est = c.cuadra === true ? 'porc-bien'
+                : c.cuadra === false ? 'porc-mal' : 'porc-tibio';
+      return `<div class="porc-caja">
+        <div class="porc-tit" style="display:flex;justify-content:space-between;gap:8px">
+          <span>${esc(c.pieza)}</span>
+          <span class="pastilla">#${c.despiece_id}</span>
+        </div>
+        <div class="t-sub" style="margin-bottom:8px">
+          Entró <b>${c.piezas_entrada
+              ? c.piezas_entrada + (c.piezas_entrada === 1 ? ' pieza' : ' piezas')
+              : porcCant(c.entro, c.unidad)}</b>${
+            c.piezas_entrada && c.gramos_entrada
+              ? ' (' + gBonito(c.gramos_entrada) + ')' : ''} ·
+          lo capturó <b>${esc(c.quien || '—')}</b>${
+            c.nota ? '<br><i>' + esc(c.nota) + '</i>' : ''}
+        </div>
+        <table class="tabla"><thead><tr>
+          <th>Salió</th><th style="text-align:right">Cantidad</th>
+        </tr></thead><tbody>
+        ${(c.salidas || []).map(s => `<tr${s.es_merma ? ' style="opacity:.65"' : ''}>
+          <td>${s.es_merma ? '🗑️ ' : ''}${esc(s.nombre || '')}</td>
+          <td style="text-align:right">${
+            porcCant(s.cantidad, s.unidad || (s.es_merma ? c.unidad : null))}</td>
+        </tr>`).join('')}
+        </tbody></table>
+        <div class="porc-cuadre ${est}">
+          ${c.cuadra === null || c.cuadra === undefined
+            ? '⚠️ Sin cuenta de rendimiento: falta el peso de <b>'
+              + esc(c.falta_peso_de || '—') + '</b>.'
+            : (c.cuadra
+               ? '✅ Cuadró: entraron ' + gBonito(c.gramos_entrada)
+                 + ', salieron ' + gBonito(c.gramos_salidas)
+                 + ' — se aprovechó el <b>' + pct + '%</b>.'
+               : 'No cuadró: entraron ' + gBonito(c.gramos_entrada)
+                 + ' y las salidas suman ' + gBonito(c.gramos_salidas)
+                 + ' — se aprovechó el <b>' + pct + '%</b>.')}
+        </div>
+      </div>`;
+    }).join('')}`}
+
+    <button class="btn-sec" style="margin-top:14px"
+      onclick="porcVolverCaptura()">← Volver a porcionar</button>`;
 }
 
 /* ======================================================================
