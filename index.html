@@ -623,6 +623,7 @@ async function irA(t, el) {
     try { await cocinaArrancar(); } catch(e){ avisar(e.message, true); }
     ocultarCargando();
   }
+  if (t === 'cocina') cocVista = 'capturar';
   if (t === 'porcionar') {
     verCargando('Cargando las piezas...');
     porcVista = 'capturar'; porcPieza = null;
@@ -1010,6 +1011,7 @@ function mostrarVarianzaCocina(res) {
 }
 
 function vistaCocina() {
+  if (cocVista === 'historial') return vistaCocHistorial();
   if (!cocConteo) {
     return `
       <div class="caja-info" style="margin-bottom:14px">
@@ -1017,6 +1019,9 @@ function vistaCocina() {
         y Carla rectifica. Va <b>a ciegas</b>: no verás lo que el sistema cree que hay,
         para que el conteo no se contamine.
       </div>
+      ${puedeMover() ? `<div class="porc-nav" style="margin-bottom:6px">
+        <button class="btn-sec" onclick="cocHistIr(null)">📅 Ver el historial — ayer contra hoy</button>
+      </div>` : ''}
       <div class="titulo-sec">¿Cuál conteo vas a hacer?</div>
       <div class="rejilla">
         <div class="tarjeta">
@@ -1039,6 +1044,8 @@ function vistaCocina() {
       <b id="cocMarcador">${Object.keys(cocHechos).length} de ${cocLista.length}</b> contados</div>
     <div class="barra-sup">
       <input class="buscar" placeholder="🔍 Buscar..." oninput="filtrarCocina()" id="buscaCoc">
+      ${puedeMover()
+        ? `<button class="btn-sec" onclick="cocHistIr(null)">📅 Historial</button>` : ''}
       ${esAdmin()
         ? `<button class="btn-pri" id="cocBtnCerrar" onclick="cocinaCerrar()">Cerrar y aplicar</button>`
         : `<button class="btn-sec" onclick="avisar('Listo. Avísale a Carla para que lo cierre.')">Terminé</button>`}
@@ -1104,6 +1111,260 @@ function filtrarCocina() {
   const txt = (document.getElementById('buscaCoc')?.value || '').toLowerCase();
   document.querySelectorAll('#zonaCoc .coc-fila').forEach(f => {
     f.style.display = f.getAttribute('data-n').includes(txt) ? '' : 'none';
+  });
+}
+
+/* ======================================================================
+   HISTORIAL DEL CONTEO DE COCINA  (Arturo, 1 nov 2026)
+
+   "Pero entonces no tiene historico el llenado, si lo hara diario le
+    aparezca ayer esto hoy esto asi saber un historico."
+
+   Lo valioso no es ver la lista de ayer: es LA RESTA.
+
+   Lo que habia ayer menos lo que hay hoy es el consumo del dia, y ese
+   numero hoy no existe en ningun lado — ni en el cuaderno de Carla ni en
+   la pantalla de cierre, que solo compara contra lo que el sistema creia.
+   Tres años contando diario sin restar es tres años de datos sin usar.
+
+   Dos cuidados que hacen la diferencia entre un numero util y uno que
+   asusta:
+
+   1) SI EN MEDIO ENTRO MERCANCIA, LA RESTA SE QUEDA CORTA. Ayer 2 kg de
+      tomate, hoy 5 kg: no "subio 3", es que llego una caja. Por eso cada
+      renglon trae lo que entro entre un conteo y otro, y solo se dice
+      "consumo" cuando no hubo entrada en medio.
+
+   2) UN CONTEO VACIO NO SIRVE DE COMPARACION. Si se compara contra una
+      prueba de 0 renglones, todo saldria "se acabo". El historial salta
+      esos y se compara contra el ultimo conteo que de verdad tiene datos.
+
+   OJO CON EL CONTEO A CIEGAS: mientras el conteo esta abierto, a quien
+   solo tiene cocina no se le muestra esta pantalla. Si la ve, cuenta
+   mirando lo de ayer y el dato se contamina — que es justo lo que el
+   conteo a ciegas evita. Carla y Arturo si la ven cuando quieran.
+   ====================================================================== */
+
+let cocVista = 'capturar';   // 'capturar' | 'historial'
+let cocHist  = null;         // lo que regresa inv_app_conteo_historial
+
+/* De unidad base a lo que ve el cocinero. Es el inverso exacto de lo que
+   hace cocinaCapturar al guardar: si no se usa la MISMA regla, el historial
+   mostraria 2500 donde van 2.5 kg, o 160 piezas donde va 1. */
+function cocHistMostrar(r, total) {
+  if (total === null || total === undefined) return null;
+  const v = cocUnidad(r);
+  const n = v.porPieza ? Number(total) / (Number(v.gr) || 1)
+                       : Number(total) / v.f;
+  return Math.round(n * 1000) / 1000;
+}
+
+function cocHistNum(n) {
+  if (n === null || n === undefined) return '—';
+  return Number(n).toLocaleString('es-MX', { maximumFractionDigits: 2 });
+}
+
+async function cocHistAbrir(id) {
+  cocHist = await rpc('inv_app_conteo_historial',
+    { p_ubicacion: 'COCINA', p_auditoria_id: id || null });
+  cocVista = 'historial';
+  pintar();
+}
+
+async function cocHistIr(id) {
+  if (!id) return;
+  verCargando('Buscando ese conteo...');
+  try { await cocHistAbrir(Number(id)); } catch (e) { avisar(e.message, true); }
+  ocultarCargando();
+}
+
+function cocHistVolver() { cocVista = 'capturar'; pintar(); }
+
+function vistaCocHistorial() {
+  const h    = cocHist || {};
+  const cab  = h.cabecera || {};
+  const ant  = h.antes || null;
+  const todos = h.lista_de_conteos || [];
+  const filas = h.renglones || [];
+
+  if (!h.hay) {
+    return `
+      <div class="caja-info" style="margin-bottom:12px">
+        📅 <b>Historial del conteo.</b> Todavía no hay ningún conteo guardado.
+        En cuanto se cierre el primero, aquí empieza a verse día contra día.
+      </div>
+      <button class="btn-sec" onclick="cocHistVolver()">← Volver a Cocina</button>`;
+  }
+
+  /* Cada renglon, ya convertido a la unidad del cocinero y con la cuenta
+     hecha. Se calcula UNA vez aqui y se reusa abajo, para que el resumen de
+     arriba y la tabla no puedan decir cosas distintas. */
+  const vistos = filas.map(r => {
+    const v     = cocUnidad(r);
+    const hoy   = cocHistMostrar(r, r.hoy_total);
+    const antes = cocHistMostrar(r, r.antes_total);
+    /* Lo que entro en medio, en la misma unidad. Si no se toma en cuenta, la
+       resta miente justo donde mas duele: la arrachera baja de 18 a 13 y
+       parece que se gastaron 5, cuando Chencho porciono 9 y en realidad se
+       vendieron 14. */
+    const entro = Math.round((v.porPieza
+        ? (Number(r.entro_pz) || 0) + (Number(r.entro) || 0) / (Number(v.gr) || 1)
+        : (Number(r.entro) || 0) / v.f) * 1000) / 1000;
+    const dif   = (antes === null) ? null : Math.round((hoy - antes) * 1000) / 1000;
+    /* Lo que de verdad se uso: lo que habia, mas lo que llego, menos lo que
+       quedo. Cuando no entro nada es la misma resta de siempre. */
+    const usado = (antes === null) ? null
+                : Math.round((antes + entro - hoy) * 1000) / 1000;
+    /* El costo esta por unidad base (gramo, mililitro, pieza); la pantalla
+       habla en kilos, litros y piezas. */
+    const porU  = Number(r.costo_base || 0) * (v.porPieza ? (Number(v.gr) || 1) : v.f);
+    return { r, v, hoy, antes, entro, dif, usado, porU };
+  });
+
+  /* El resumen de arriba. El peso en pesos es lo que vuelve el conteo
+     accionable: "anoche se fueron $4,800 de cocina" se entiende solo. */
+  let nBajo = 0, nSubio = 0, nIgual = 0, nNuevo = 0, pesos = 0;
+  for (const x of vistos) {
+    if (x.dif === null)            { nNuevo++; continue; }
+    if (x.usado > 0.0005)          { pesos += x.usado * x.porU; }
+    if (x.dif < -0.0005)           { nBajo++;  }
+    else if (x.dif > 0.0005)       { nSubio++; }
+    else                           { nIgual++; }
+  }
+
+  let html = `
+    <div class="caja-info" style="margin-bottom:12px">
+      📅 <b>Historial del conteo de cocina.</b> Cada renglón trae lo que había
+      el conteo pasado, lo que hay en este, y la diferencia. Esa diferencia
+      <b>es el consumo</b> — siempre que en medio no haya entrado mercancía,
+      y cuando entró, aquí se dice.
+    </div>
+
+    <div class="porc-nav">
+      <button class="btn-sec" ${h.ir_atras ? '' : 'disabled'}
+        onclick="cocHistIr(${h.ir_atras || 0})">◀ ${
+          h.ir_atras ? 'conteo anterior' : 'no hay antes'}</button>
+      <div class="porc-dia">${esc(cab.fecha || '')}${
+          cab.hora ? ' · ' + esc(cab.hora) : ''}</div>
+      <button class="btn-sec" ${h.ir_adelante ? '' : 'disabled'}
+        onclick="cocHistIr(${h.ir_adelante || 0})">${
+          h.ir_adelante ? 'conteo siguiente' : 'no hay después'} ▶</button>
+    </div>
+
+    ${todos.length > 1 ? `<div class="porc-dias">
+      ${todos.map(d => `<button class="pastilla porc-pill${
+          Number(d.id) === Number(h.auditoria_id) ? ' on' : ''}"
+          onclick="cocHistIr(${d.id})">${esc(d.fecha)}${
+          d.estado === 'ABIERTA' ? ' ·abierto' : ''}</button>`).join('')}
+    </div>` : ''}
+
+    <div class="caja-info" style="margin-bottom:10px;font-size:12px">
+      Conteo <b>#${cab.id}</b> del <b>${esc(cab.fecha || '')}</b> a las
+      <b>${esc(cab.hora || '—')}</b>, lo capturó <b>${esc(cab.quien || '—')}</b>.
+      ${cab.estado === 'ABIERTA'
+        ? 'Sigue <b>abierto</b>: lo que se vea aquí todavía puede cambiar.'
+        : (cab.aplicado ? 'Cerrado y <b>aplicado</b> al inventario.'
+                        : 'Cerrado, pero <b>sin aplicar</b> al inventario.')}
+      ${ant ? `Se compara contra el conteo <b>#${ant.id}</b> del
+               <b>${esc(ant.fecha)}</b>.`
+            : 'Es el primer conteo: no hay con qué comparar todavía.'}
+    </div>`;
+
+  if (ant) {
+    html += `
+      <div class="rejilla" style="margin-bottom:12px">
+        <div class="tarjeta">
+          <div class="t-tit">Se usaron ≈ $${
+            pesos.toLocaleString('es-MX', { maximumFractionDigits: 0 })}</div>
+          <div class="t-sub">Lo que había, más lo que entró, menos lo que quedó.
+            No es el costo de ventas exacto: la merma que nadie anotó también
+            cae aquí dentro.</div>
+        </div>
+        <div class="tarjeta">
+          <div class="t-tit">${nBajo} bajaron · ${nSubio} subieron</div>
+          <div class="t-sub">Si algo subió y no entró mercancía, el conteo de
+            alguno de los dos días está mal.</div>
+        </div>
+        <div class="tarjeta">
+          <div class="t-tit">${nIgual} igual · ${nNuevo} ${
+            nNuevo === 1 ? 'nuevo' : 'nuevos'}</div>
+          <div class="t-sub">${nNuevo === 1 ? 'El nuevo no se había contado'
+            : 'Los nuevos no se habían contado'} el conteo pasado,
+            así que no se les puede restar nada.</div>
+        </div>
+      </div>`;
+  }
+
+  html += `
+    <div class="barra-sup">
+      <input class="buscar" placeholder="🔍 Buscar..." oninput="filtrarCocHist()" id="buscaCocH">
+    </div>
+    <div id="zonaCocH">`;
+
+  /* Mismo orden de zonas que la captura: el Corte arriba, igual que en el
+     inventario de Carne, y de ahi para abajo lo demas de la cocina. */
+  const zonas = [];
+  for (const x of vistos) if (!zonas.includes(x.r.zona)) zonas.push(x.r.zona);
+
+  for (const z of zonas) {
+    const arr = vistos.filter(x => x.r.zona === z);
+    html += `<div class="titulo-sec">${esc(zonaBonita(z))}</div>
+      <table class="tabla"><thead><tr>
+        <th>Insumo</th>
+        <th style="text-align:right">${ant ? esc(ant.fecha.slice(5)) : 'antes'}</th>
+        <th style="text-align:right">${esc((cab.fecha || '').slice(5))}</th>
+        <th style="text-align:right">Diferencia</th>
+      </tr></thead><tbody>`;
+
+    for (const x of arr) {
+      const r = x.r, v = x.v;
+
+      let celda, color = 'var(--dim)';
+      if (x.dif === null) {
+        celda = '<small>sin dato antes</small>';
+      } else if (Math.abs(x.dif) < 0.0005 && x.entro < 0.0005) {
+        celda = 'igual';
+      } else if (x.dif < 0) {
+        color = 'var(--green)';
+        celda = '−' + cocHistNum(-x.dif) + ' ' + esc(v.u);
+      } else if (x.dif > 0) {
+        color = 'var(--orange)';
+        celda = '+' + cocHistNum(x.dif) + ' ' + esc(v.u);
+      } else {
+        celda = 'igual';
+      }
+
+      /* Cuando entro mercancia en medio, el numero grande (la resta) ya no es
+         el consumo. Se dice en chico cuanto llego y cuanto se uso de verdad,
+         en vez de dejar que alguien lea 5 donde fueron 14. */
+      if (x.entro > 0.0005 && x.dif !== null) {
+        celda += `<br><small style="color:var(--muted)">entró ${
+          cocHistNum(x.entro)} · se usaron <b>${
+          cocHistNum(Math.max(x.usado, 0))} ${esc(v.u)}</b></small>`;
+      }
+
+      html += `<tr data-n="${esc((r.nombre || '').toLowerCase())}">
+        <td>${esc(r.nombre)}</td>
+        <td style="text-align:right">${x.antes === null ? '—'
+            : cocHistNum(x.antes) + ' ' + esc(v.u)}</td>
+        <td style="text-align:right"><b>${cocHistNum(x.hoy)} ${esc(v.u)}</b></td>
+        <td style="text-align:right;color:${color}">${celda}</td>
+      </tr>`;
+    }
+    html += '</tbody></table>';
+  }
+
+  return html + `</div>
+    <button class="btn-sec" style="margin-top:14px"
+      onclick="cocHistVolver()">← Volver a Cocina</button>`;
+}
+
+/* Esconde renglones, no los redibuja: igual que en la captura. */
+function filtrarCocHist() {
+  const txt = (document.getElementById('buscaCocH')?.value || '').toLowerCase();
+  document.querySelectorAll('#zonaCocH tbody tr').forEach(f => {
+    const n = f.getAttribute('data-n') || '';
+    f.style.display = n.includes(txt) ? '' : 'none';
   });
 }
 
