@@ -148,6 +148,18 @@ main{padding:14px;max-width:1000px;margin:0 auto}
 .coc-lista{background:var(--bg2);border:1px solid var(--border);border-radius:var(--r);overflow:hidden;margin-bottom:14px}
 .coc-fila{display:grid;grid-template-columns:1fr auto;gap:10px;align-items:center;
   padding:9px 13px;border-bottom:1px solid var(--border)}
+/* El recuadro de ayer: se lee, no se escribe. Por eso va apagado y sin
+   borde vivo — para que a nadie se le ocurra teclear ahi. */
+.coc-ayer{width:62px;text-align:center;font-size:14px;font-variant-numeric:tabular-nums;
+  padding:9px 4px;border:1px dashed var(--border2);border-radius:var(--rsm);
+  background:transparent;color:var(--muted)}
+.coc-ayer.vacio{color:var(--dim)}
+.coc-cab{display:flex;justify-content:flex-end;gap:6px;align-items:center;
+  padding:0 13px 5px;font-size:10px;color:var(--dim);letter-spacing:.4px;
+  text-transform:uppercase}
+.coc-cab span:first-child{width:62px;text-align:center}
+.coc-cab span:nth-child(2){width:72px;text-align:center}
+.coc-cab span:last-child{width:46px}
 .coc-fila:last-child{border-bottom:none}
 .coc-nom{font-size:14px;line-height:1.3;min-width:0}
 .coc-nom small{display:block;color:var(--dim);font-size:10.5px;margin-top:2px}
@@ -412,6 +424,8 @@ let cocConteo = null;   // id de la auditoria abierta en COCINA
 let cocLista  = [];     // los renglones que toca contar
 let cocModo   = 'DIARIO';
 let cocHechos = {};     // insumo_id -> true cuando ya se guardo
+let cocAyer   = {};     // insumo_id -> lo que se conto la vez pasada
+let cocAyerInfo = null; // de que conteo salio ese dato
 /* Las zonas ya NO van escritas aqui. Vienen de la base, en el orden en que se
    recorre, porque ahora son dos listas distintas:
      1-10  las secciones del Corte — lo que cocina tiene LISTO para vender
@@ -868,19 +882,56 @@ async function cocinaArrancar() {
      regla equivocada escribiria 2500 donde van 2.5. */
   if (crudos) {
     for (const i of cocLista) {
-      const d = crudos[String(i.insumo_id)];
-      if (!d) continue;
-      const v = cocUnidad(i);
-      if (v.porPieza) {
-        /* inverso del reparto de arriba: piezas enteras + la fraccion */
-        const gr = Number(i.gramos_por_pieza) || 1;
-        const n  = Number(d.pz || 0) + (Number(d.ct || 0) / gr);
-        cocHechos[i.insumo_id] = Math.round(n * 1000) / 1000;
-      } else if (d.ct !== null && d.ct !== undefined) {
-        cocHechos[i.insumo_id] = Number(d.ct) / v.f;
-      }
+      const n = cocDesdeBase(i, crudos[String(i.insumo_id)]);
+      if (n !== undefined) cocHechos[i.insumo_id] = n;
     }
   }
+
+  await cocCargarAyer();
+}
+
+/* De como lo guarda la base a como lo ve el cocinero. Es el inverso exacto del
+   reparto que hace cocinaCapturar, y vive en UN solo lugar a proposito: lo
+   capturado de hoy y lo contado ayer tienen que convertirse igual, o la
+   pantalla mostraria dos numeros distintos para la misma cantidad. */
+function cocDesdeBase(i, d) {
+  if (!d) return undefined;
+  const v = cocUnidad(i);
+  if (v.porPieza) {
+    /* piezas enteras + la fraccion que se guardo como sueltos */
+    const gr = Number(v.gr) || 1;
+    return Math.round((Number(d.pz || 0) + (Number(d.ct || 0) / gr)) * 1000) / 1000;
+  }
+  if (d.ct === null || d.ct === undefined) return undefined;
+  return Math.round((Number(d.ct) / v.f) * 1000) / 1000;
+}
+
+/* Lo del conteo pasado, para ponerlo AL LADO del campo de hoy.
+   Arturo, 1 nov: "diario es ir viendo lo del dia anterior y lo que pondras
+   hoy, y asi sucesivamente."
+   Si esto falla, el conteo sigue: el dato de ayer es ayuda, no requisito. */
+async function cocCargarAyer() {
+  cocAyer = {}; cocAyerInfo = null;
+  try {
+    const a = await rpc('inv_app_conteo_anterior',
+      { p_ubicacion: 'COCINA', p_excluir: cocConteo });
+    if (!a || !a.hay) return;
+    cocAyerInfo = a;
+    for (const i of cocLista) {
+      const n = cocDesdeBase(i, (a.valores || {})[String(i.insumo_id)]);
+      if (n !== undefined) cocAyer[i.insumo_id] = n;
+    }
+  } catch (e) { cocAyerInfo = null; }
+}
+
+/* "ayer", "antier" o la fecha: el conteo no siempre es de ayer. */
+function cocAyerEtiqueta() {
+  if (!cocAyerInfo) return 'antes';
+  const d = Number(cocAyerInfo.dias_atras);
+  if (d === 0) return 'hoy';
+  if (d === 1) return 'ayer';
+  if (d === 2) return 'antier';
+  return cocAyerInfo.fecha ? cocAyerInfo.fecha.slice(5) : 'antes';
 }
 
 async function cocinaEmpezar(modo) {
@@ -894,6 +945,7 @@ async function cocinaEmpezar(modo) {
     cocHechos = {};
     cocLista = await rpc('inv_app_lista_conteo',
       { p_ubicacion: 'COCINA', p_modo: cocModo }) || [];
+    await cocCargarAyer();
     pintar();
   } catch (e) { avisar(e.message, true); }
   ocultarCargando();
@@ -1053,6 +1105,9 @@ function vistaCocina() {
     <div class="caja-info" style="margin-bottom:10px">
       Anota <b>cuánto hay</b> de cada cosa, en la unidad que dice a la derecha.
       Lo que no cuentes no se toca. Cada dato se guarda solo al salir del campo.
+      ${cocAyerInfo ? `<br><br>El recuadro de la izquierda es <b>lo que se contó
+        ${esc(cocAyerEtiqueta())}</b> (${esc(cocAyerInfo.fecha || '')}), solo para
+        verlo. El de la derecha es el de hoy.` : ''}
     </div>
     <div id="zonaCoc">`;
 
@@ -1076,6 +1131,9 @@ function vistaCocina() {
             <span>${esc(zonaBonita(clave))}</span>
             <span class="pastilla" id="cz_${claveId(clave)}">${hechos}/${arr.length}</span>
           </div>`;
+    if (cocAyerInfo) {
+      h += `<div class="coc-cab"><span>${esc(cocAyerEtiqueta())}</span><span>hoy</span><span></span></div>`;
+    }
     h += '<div class="coc-lista">';
     for (const i of arr) {
       const v = cocUnidad(i);
@@ -1083,11 +1141,16 @@ function vistaCocina() {
          !== undefined y no por el valor, que con 0 daria falso y el renglon
          se veria como si nadie lo hubiera contado. */
       const hecho = cocHechos[i.insumo_id] !== undefined;
+      const ayer = cocAyer[i.insumo_id];
       h += `<div class="coc-fila" data-n="${esc((i.nombre||'').toLowerCase())}">
         <div class="coc-nom">${esc(i.nombre)}
           ${v.porPieza ? `<small>por pieza · se admiten mitades</small>`
                        : (i.presentacion ? `<small>${esc(i.presentacion)}</small>` : '')}</div>
         <div class="coc-cap">
+          ${cocAyerInfo ? `<div class="coc-ayer${ayer === undefined ? ' vacio' : ''}"
+            title="Lo que se contó ${esc(cocAyerEtiqueta())}">${
+            ayer === undefined ? '—'
+              : ayer.toLocaleString('es-MX', { maximumFractionDigits: 2 })}</div>` : ''}
           <input class="inp-chico${hecho ? ' coc-ok' : ''}" type="number"
                  id="cc_${i.insumo_id}" placeholder="0" min="0"
                  step="any"
