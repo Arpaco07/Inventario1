@@ -1024,13 +1024,15 @@ function vistaCocina() {
     const arr = cocLista.filter(x => x.zona === clave);
     if (!arr.length) continue;
     const hechos = arr.filter(x => cocHechos[x.insumo_id] !== undefined).length;
-    /* El primer renglon crudo (zona_orden 20+) abre la segunda mitad de la
-       lista. Hasta ahi se conto lo LISTO; de ahi para abajo, lo CRUDO. */
+    /* La zona_orden 20+ abre la segunda mitad de la lista. Arriba va el Corte,
+       igual que en el inventario de Carne; de ahi para abajo, lo demas de la
+       cocina. La carne cruda ya no aparece aqui: vive en la casa y baja por
+       Porcionar, que la convierte en porciones el mismo dia. */
     if (!avisoPuesto && arr[0] && arr[0].zona_orden >= 20) {
       avisoPuesto = true;
       h += `<div class="caja-info" style="margin:18px 0 8px;font-size:12px">
-        De aquí para abajo es <b>materia prima</b>: lo que todavía no se porciona.
-        Arriba quedó lo que cocina ya tiene listo para vender.
+        Hasta aquí es el <b>Corte</b>, igual que en el inventario de Carne.
+        De aquí para abajo va lo demás de la cocina: verdura, barra fría y abarrotes.
       </div>`;
     }
     h += `<div class="titulo-sec" style="display:flex;justify-content:space-between;align-items:center">
