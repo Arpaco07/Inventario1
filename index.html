@@ -1107,7 +1107,13 @@ function vistaCocina() {
       Lo que no cuentes no se toca. Cada dato se guarda solo al salir del campo.
       ${cocAyerInfo ? `<br><br>El recuadro de la izquierda es <b>lo que se contó
         ${esc(cocAyerEtiqueta())}</b> (${esc(cocAyerInfo.fecha || '')}), solo para
-        verlo. El de la derecha es el de hoy.` : ''}
+        verlo. El de la derecha es el de hoy.`
+      /* Si no se dice, parece que la columna de ayer esta fallando. No falla:
+         es que este es el primer conteo y no hay contra que compararlo. Una
+         funcion que se esconde sola sin explicar se ve igual que una rota. */
+      : `<br><br>📅 <b>Éste es el primer conteo</b>, por eso todavía no aparece
+        la columna de <b>ayer</b>. En cuanto se cierre, el siguiente ya va a
+        traer al lado lo que se contó hoy.`}
     </div>
     <div id="zonaCoc">`;
 
