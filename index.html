@@ -184,6 +184,21 @@ line-height:1.25;white-space:normal}
 .porc-dias{display:flex;gap:6px;overflow-x:auto;padding-bottom:9px;margin-bottom:5px}
 .porc-pill{background:none;color:var(--muted);cursor:pointer;font-variant-numeric:tabular-nums}
 .porc-pill.on{background:rgba(var(--accent-sv),.14);color:var(--accent);border-color:rgba(var(--accent-sv),.4)}
+/* --- Barra: dos numeros por botella, stock y copeo --- */
+.bar-fila{display:grid;grid-template-columns:1fr 58px 58px 16px;gap:7px;align-items:center;
+padding:9px 11px;border-bottom:1px solid var(--border)}
+.bar-fila:last-child{border-bottom:none}
+.bar-fila .inp-chico{width:100%;text-align:center;font-size:15px;font-weight:600;
+font-variant-numeric:tabular-nums;padding:8px 4px}
+.bar-fila .inp-chico.coc-ok{border-color:rgba(var(--green-sv),.5);background:rgba(var(--green-sv),.07)}
+.bar-fila input[type=number]::-webkit-inner-spin-button,
+.bar-fila input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+.bar-fila input[type=number]{-moz-appearance:textfield;appearance:textfield}
+.bar-nd{text-align:center;color:var(--dim);font-size:13px}
+.bar-cab{display:grid;grid-template-columns:1fr 58px 58px 16px;gap:7px;
+padding:0 11px 5px;font-size:10px;color:var(--dim);text-align:center;
+letter-spacing:.4px;text-transform:uppercase}
+.bar-cab span:first-child{text-align:left}
 
 /* ---------- MODAL ---------- */
 .capa{position:fixed;inset:0;background:rgba(0,0,0,.85);z-index:200;display:none;align-items:flex-end;justify-content:center}
@@ -281,6 +296,7 @@ line-height:1.25;white-space:normal}
       <button class="pestana on" data-tab="existencias" onclick="irA('existencias',this)">📦 Existencias</button>
       <button class="pestana" data-tab="cocina"     onclick="irA('cocina',this)">🍳 Cocina</button>
       <button class="pestana" data-tab="porcionar"  onclick="irA('porcionar',this)">🔪 Porcionar</button>
+      <button class="pestana" data-tab="barra"      onclick="irA('barra',this)">🍸 Barra</button>
       <button class="pestana" data-tab="catalogo"   onclick="irA('catalogo',this)">📋 Catálogo</button>
       <button class="pestana" data-tab="auditoria"  onclick="irA('auditoria',this)">⚖️ Auditoría</button>
       <button class="pestana" data-tab="movimientos" onclick="irA('movimientos',this)">🔄 Movimientos</button>
@@ -536,6 +552,7 @@ async function arrancarApp() {
     ajustarPestanasPorNivel();
     await cargarDatos();
     if (tab === 'cocina') { try { await cocinaArrancar(); } catch(e){ avisar(e.message, true); } }
+    if (tab === 'barra')  { try { await barraArrancar();  } catch(e){ avisar(e.message, true); } }
     pintar();
   } catch (e) {
     ocultarCargando();
@@ -612,6 +629,11 @@ async function irA(t, el) {
     try { await porcArrancar(); } catch(e){ avisar(e.message, true); }
     ocultarCargando();
   }
+  if (t === 'barra') {
+    verCargando('Cargando la barra...');
+    try { await barraArrancar(); } catch(e){ avisar(e.message, true); }
+    ocultarCargando();
+  }
   pintar();
 }
 
@@ -623,18 +645,25 @@ const esCocinero = () => YO && /cocina|chef/i.test(YO.rol || '');
 
 function ajustarPestanasPorNivel() {
   const soloCocina = esCocinero();
+  const soloBarra  = esBarman();
   document.querySelectorAll('.pestana').forEach(p => {
     const t = p.getAttribute('data-tab');
-    /* Chencho ve Cocina y Porcionar: el porciona, el lo captura. Lo demas no. */
+    /* Cada quien ve lo suyo y nada mas: cocina ve Cocina y Porcionar (el
+       porciona, el lo captura); barra ve Barra. Encargado y admin ven todo.
+       Va por ROL, no por nivel: mesero y cocina dan el mismo nivel, asi que
+       filtrar por nivel le abriria el conteo a los cuatro meseros. */
     const deCocina = (t === 'cocina' || t === 'porcionar');
+    const deBarra  = (t === 'barra');
     let ver;
-    if (soloCocina)    ver = deCocina;
-    else if (deCocina) ver = puedeMover();             // encargado o admin
-    else               ver = true;                     // lo demas, como siempre
+    if (soloCocina)      ver = deCocina;
+    else if (soloBarra)  ver = deBarra;
+    else if (deCocina || deBarra) ver = puedeMover();   // encargado o admin
+    else                 ver = true;                    // lo demas, como siempre
     p.style.display = ver ? '' : 'none';
     p.classList.remove('on');
   });
-  if (soloCocina) tab = 'cocina';
+  if (soloCocina)     tab = 'cocina';
+  else if (soloBarra) tab = 'barra';
   const act = document.querySelector('.pestana[data-tab="' + tab + '"]');
   if (act) act.classList.add('on');
 }
@@ -644,6 +673,7 @@ function pintar() {
   if (tab === 'existencias')      c.innerHTML = vistaExistencias();
   else if (tab === 'cocina')      c.innerHTML = vistaCocina();
   else if (tab === 'porcionar')   c.innerHTML = vistaPorcionar();
+  else if (tab === 'barra')       c.innerHTML = vistaBarra();
   else if (tab === 'catalogo')    c.innerHTML = vistaCatalogo();
   else if (tab === 'auditoria')   c.innerHTML = vistaAuditoria();
   else if (tab === 'movimientos') c.innerHTML = vistaMovimientos();
@@ -1126,11 +1156,15 @@ function porcUnidad(x, esEntrada) {
   return { etq: 'unidades', f: 1, g: gcu };
 }
 
-/* La merma se pesa, no se cuenta: siempre va en peso. */
+/* La merma se PESA, no se cuenta. Nadie dice "tiré 3 unidades de grasa": dice
+   los gramos que marcó la báscula. Decía "unidades" cuando la pieza se contaba
+   por piezas, y Chencho escribió 1330 ahí el primer día — quería decir gramos.
+   En una pieza que se cuenta por piezas la merma no mueve inventario (no hay
+   con qué convertirla), pero queda anotada en gramos, que es el dato útil. */
 function porcUnidadMerma(e) {
   return e.unidad === 'G' || e.unidad === 'ML'
     ? { etq: 'kg', f: 1000, g: 1000 }
-    : { etq: 'unidades', f: 1, g: 0 };
+    : { etq: 'g',  f: 1,    g: 0 };
 }
 
 /* El historial lo lee gente, no la base: "8,600 G" se escribe 8.6 kg, y una
@@ -1521,6 +1555,315 @@ function vistaPorcHistorial() {
 
     <button class="btn-sec" style="margin-top:14px"
       onclick="porcVolverCaptura()">← Volver a porcionar</button>`;
+}
+
+/* ======================================================================
+   BARRA  (Arturo, 1 nov 2026)
+
+   POR QUE "CERRADAS" Y "COPEO" NO SON DOS LISTAS, SINO DOS COLUMNAS
+
+   Arturo preguntó cómo clasificar: botellas cerradas, botellas de copeo y
+   botellas de insumo para mezclas.
+
+   Las dos primeras NO son tipos de producto: son ESTADOS de la misma botella.
+   El Don Julio está cerrado hoy y destapado mañana, y es el mismo Don Julio.
+   Si fueran dos renglones, al abrir una habría que moverla de lista a lista y
+   su historial de precio se partiría en dos — que es justo el error que el
+   plan maestro llama "dos listas de lo mismo con precios que se separan en
+   silencio".
+
+   Por eso cada botella va UNA vez, con dos números:
+       STOCK  = las cerradas del anaquel
+       COPEO  = lo que queda en la destapada
+   y el total sale solo: stock × capacidad + copeo.
+
+   La tercera SÍ es un tipo de producto —el Controy nunca se vende solo— pero
+   eso no se captura: se deduce. Si una botella aparece en las recetas de
+   coctel, es de mezcla; si está en el menú, es de venta. Eso llega con el
+   pour cost y no hay que teclearlo ahora.
+   ====================================================================== */
+
+let barConteo = null;
+let barLista  = [];
+let barModo   = 'SEMANAL';
+let barHechos = {};   // insumo_id -> {stock, copeo}
+
+const esBarman = () => YO && /barra|bar\b|cantin/i.test(YO.rol || '');
+
+/* Cómo se cuenta cada renglón de barra.
+     mide  = 'ml' las que llevan líquido suelto (licor, vino)
+             'pz' las que solo se cuentan enteras (cerveza, refresco, lata)
+     cap   = cuántos ml trae una botella llena
+     pesa  = true si se le puede poner la báscula (tiene el peso de la llena) */
+function barUnidad(i) {
+  const cap = Number(i.capacidad_ml) || 0;
+  if ((i.unidad_base === 'ML') && cap > 0) {
+    return { mide: 'ml', cap: cap, etq: 'ml' };
+  }
+  return { mide: 'pz', cap: 1, etq: (i.presentacion || 'pz') };
+}
+
+async function barraArrancar() {
+  const e = await rpc('inv_app_conteo_estado', { p_ubicacion: 'BARRA' });
+  let crudos = null;
+  if (e && e.hay_abierto) {
+    barConteo = e.auditoria_id;
+    barModo   = (e.tipo === 'DIARIO') ? 'DIARIO' : 'SEMANAL';
+    crudos    = e.ya_capturado || {};
+  } else {
+    barConteo = null;
+  }
+  barHechos = {};
+  barLista = await rpc('inv_app_lista_conteo',
+    { p_ubicacion: 'BARRA', p_modo: barModo }) || [];
+
+  /* Lo guardado vuelve a la pantalla tal como se tecleó: las cerradas en
+     piezas y el copeo en mililitros. */
+  if (crudos) {
+    for (const i of barLista) {
+      const d = crudos[String(i.insumo_id)];
+      if (!d) continue;
+      barHechos[i.insumo_id] = {
+        stock: (d.pz === null || d.pz === undefined) ? '' : Number(d.pz),
+        copeo: (d.ct === null || d.ct === undefined) ? '' : Number(d.ct)
+      };
+    }
+  }
+}
+
+async function barraEmpezar(modo) {
+  barModo = modo;
+  verCargando('Abriendo el conteo de barra...');
+  try {
+    const tipo = (modo === 'DIARIO') ? 'CIERRE_TURNO' : 'SEMANAL';
+    const id = await rpc('inv_app_auditoria_abrir',
+      { p_ubicacion: 'BARRA', p_tipo: tipo });
+    barConteo = (id && typeof id === 'object') ? id.id : id;
+    barHechos = {};
+    barLista = await rpc('inv_app_lista_conteo',
+      { p_ubicacion: 'BARRA', p_modo: barModo }) || [];
+    pintar();
+  } catch (e) { avisar(e.message, true); }
+  ocultarCargando();
+}
+
+/* Se guarda renglón por renglón, al salir del campo. Igual que en cocina:
+   si se cae la señal a media barra, lo ya capturado está a salvo. */
+async function barraCapturar(id) {
+  if (!barConteo) return;
+  const cs = document.getElementById('bs_' + id);
+  const cc = document.getElementById('bc_' + id);
+  const marca = document.getElementById('bm_' + id);
+  if (!cs) return;
+
+  const leer = (el) => {
+    if (!el) return null;
+    const t = (el.value || '').trim().replace(',', '.');
+    if (t === '') return null;
+    const n = parseFloat(t);
+    return (isFinite(n) && n >= 0) ? n : NaN;
+  };
+  const stock = leer(cs);
+  const copeo = leer(cc);
+
+  if (Number.isNaN(stock) || Number.isNaN(copeo)) {
+    if (marca) marca.textContent = '⚠️';
+    return;
+  }
+  /* Si los dos están vacíos, el renglón no se contó. Y ojo: eso NO es lo
+     mismo que haber contado cero. Contar cero es el dato más importante que
+     hay —"se acabó"— y por eso se compara contra null, no contra falsy. */
+  if (stock === null && copeo === null) {
+    delete barHechos[id];
+    if (marca) marca.textContent = '';
+    cs.classList.remove('coc-ok'); if (cc) cc.classList.remove('coc-ok');
+    barraMarcador();
+    return;
+  }
+
+  if (marca) marca.textContent = '…';
+  try {
+    await rpc('inv_app_auditoria_capturar', {
+      p_auditoria_id: barConteo, p_insumo_id: id,
+      p_piezas_cerradas: Math.round(stock || 0),
+      p_peso_g: null,
+      p_cantidad_suelta: copeo
+    });
+    barHechos[id] = { stock: stock === null ? '' : stock,
+                      copeo: copeo === null ? '' : copeo };
+    if (marca) marca.textContent = '✓';
+    cs.classList.add('coc-ok'); if (cc && copeo !== null) cc.classList.add('coc-ok');
+    barraMarcador();
+  } catch (e) {
+    if (marca) marca.textContent = '⚠️';
+    const ins = barLista.find(x => x.insumo_id === id);
+    avisar('No se guardó ' + (ins ? ins.nombre : '') + ': ' + e.message, true);
+  }
+}
+
+function barraMarcador() {
+  const z = document.getElementById('barMarcador');
+  if (!z) return;
+  const hechos = Object.keys(barHechos).length;
+  z.textContent = hechos + ' de ' + barLista.length;
+  zonasDeBarra().forEach((clave) => {
+    const b = document.getElementById('bz_' + claveId(clave));
+    if (!b) return;
+    const arr = barLista.filter(x => x.zona === clave);
+    const h = arr.filter(x => barHechos[x.insumo_id] !== undefined).length;
+    b.textContent = h + '/' + arr.length;
+  });
+  const btn = document.getElementById('barBtnCerrar');
+  if (btn) btn.disabled = hechos === 0;
+}
+
+function zonasDeBarra() {
+  const vistas = [];
+  for (const i of barLista) if (!vistas.includes(i.zona)) vistas.push(i.zona);
+  return vistas;
+}
+
+async function barraCerrar() {
+  const hechos = Object.keys(barHechos).length;
+  const faltan = barLista.length - hechos;
+  const msg = faltan > 0
+    ? 'Faltan ' + faltan + ' renglones sin contar. Esos se quedan como estaban '
+      + 'y no se corrigen.\n\n¿Cerrar de todos modos?'
+    : 'Se aplican los ' + barLista.length + ' renglones. La diferencia contra lo '
+      + 'que el sistema creía queda registrada como el consumo.\n\n¿Cerrar y aplicar?';
+  if (!confirm(msg)) return;
+
+  verCargando('Cerrando el conteo de barra...');
+  try {
+    await rpc('inv_app_auditoria_cerrar',
+      { p_auditoria_id: barConteo, p_aplicar_ajuste: true });
+    try { await rpc('inv_app_auditoria_revisar', { p_auditoria_id: barConteo }); } catch (e) {}
+    const res = await rpc('inv_app_auditoria_resultado', { p_auditoria_id: barConteo });
+    barConteo = null; barHechos = {};
+    await cargarDatos();
+    mostrarVarianzaBarra(res || []);
+  } catch (e) { avisar(e.message, true); }
+  ocultarCargando();
+}
+
+function mostrarVarianzaBarra(res) {
+  const c = document.getElementById('contenido');
+  const filas = res.filter(d => Number(d.varianza_base || 0) !== 0);
+  c.innerHTML = `
+    <div class="caja-info" style="margin-bottom:12px">
+      ✅ <b>Conteo de barra cerrado.</b> El inventario ya quedó con lo que se contó,
+      y la diferencia se guardó como el consumo.
+    </div>
+    ${!filas.length ? '<div class="vacio">Todo cuadró exacto.</div>' : `
+    <div class="caja-info" style="margin-bottom:10px;font-size:12px">
+      Las primeras dos o tres veces las diferencias van a salir grandes, y eso
+      <b>no es robo</b>: es que el inventario de arranque venía del tanteo. El número
+      empieza a significar algo desde el tercer conteo.
+    </div>
+    <table class="tabla"><thead><tr>
+      <th>Botella</th><th style="text-align:right">Creía</th>
+      <th style="text-align:right">Contó</th><th style="text-align:right">Diferencia</th>
+    </tr></thead><tbody>
+    ${filas.map(d => `<tr>
+      <td>${esc(d.nombre || '')}</td>
+      <td style="text-align:right">${Number(d.cantidad_teorica_base || 0).toFixed(0)}</td>
+      <td style="text-align:right">${Number(d.cantidad_real_base || 0).toFixed(0)}</td>
+      <td style="text-align:right">${Math.abs(Number(d.varianza_base || 0)).toFixed(0)}</td>
+    </tr>`).join('')}
+    </tbody></table>`}
+    <button class="btn-sec" style="margin-top:14px"
+      onclick="irA('barra',document.querySelector('[data-tab=barra]'))">Volver a Barra</button>`;
+}
+
+function vistaBarra() {
+  if (!barConteo) {
+    return `
+      <div class="caja-info" style="margin-bottom:14px">
+        🍸 <b>Conteo de barra.</b> Cada botella se cuenta <b>una sola vez</b>, con dos
+        números: <b>Stock</b> son las cerradas del anaquel y <b>Copeo</b> es lo que le
+        queda a la destapada. El total lo saca el sistema.
+      </div>
+      <div class="titulo-sec">¿Cuál conteo vas a hacer?</div>
+      <div class="rejilla">
+        <div class="tarjeta">
+          <div class="t-tit">📅 El de la semana</div>
+          <div class="t-sub">Toda la barra: licor, vino, cerveza y refresco.</div>
+          <button class="btn-pri" style="margin-top:8px"
+            onclick="barraEmpezar('SEMANAL')">Empezar</button>
+        </div>
+        <div class="tarjeta">
+          <div class="t-tit">🌙 El de cada noche</div>
+          <div class="t-sub">Solo lo que se mueve rápido.</div>
+          <button class="btn-pri" style="margin-top:8px"
+            onclick="barraEmpezar('DIARIO')">Empezar</button>
+        </div>
+      </div>`;
+  }
+
+  let h = `
+    <div class="aviso">🍸 Conteo de barra #${barConteo} —
+      <b id="barMarcador">${Object.keys(barHechos).length} de ${barLista.length}</b> contados</div>
+    <div class="barra-sup">
+      <input class="buscar" placeholder="🔍 Buscar botella..." oninput="filtrarBarra()" id="buscaBar">
+      ${esAdmin()
+        ? `<button class="btn-pri" id="barBtnCerrar" onclick="barraCerrar()">Cerrar y aplicar</button>`
+        : `<button class="btn-sec" onclick="avisar('Listo. Avísale a Carla para que lo cierre.')">Terminé</button>`}
+    </div>
+    <div class="caja-info" style="margin-bottom:10px">
+      <b>Stock</b>: cuántas botellas cerradas hay. <b>Copeo</b>: cuántos ml le quedan a
+      la que está abierta — si no hay abierta, déjalo vacío. Cada dato se guarda solo
+      al salir del campo.
+    </div>
+    <div class="bar-cab">
+      <span></span><span>Stock</span><span>Copeo</span><span></span>
+    </div>
+    <div id="zonaBar">`;
+
+  for (const clave of zonasDeBarra()) {
+    const arr = barLista.filter(x => x.zona === clave);
+    if (!arr.length) continue;
+    const hechos = arr.filter(x => barHechos[x.insumo_id] !== undefined).length;
+    h += `<div class="titulo-sec" style="display:flex;justify-content:space-between;align-items:center">
+            <span>${esc(clave)}</span>
+            <span class="pastilla" id="bz_${claveId(clave)}">${hechos}/${arr.length}</span>
+          </div>`;
+    h += '<div class="coc-lista">';
+    for (const i of arr) {
+      const v = barUnidad(i);
+      const d = barHechos[i.insumo_id];
+      const hecho = d !== undefined;
+      h += `<div class="bar-fila" data-n="${esc((i.nombre||'').toLowerCase())}">
+        <div class="coc-nom">${esc(i.nombre)}
+          ${v.mide === 'ml'
+            ? `<small>botella de ${v.cap} ml</small>`
+            : (i.presentacion ? `<small>${esc(i.presentacion)}</small>` : '')}</div>
+        <input class="inp-chico${hecho ? ' coc-ok' : ''}" type="number"
+               id="bs_${i.insumo_id}" placeholder="0" min="0" step="1"
+               value="${hecho ? d.stock : ''}" inputmode="numeric"
+               onchange="barraCapturar(${i.insumo_id})"
+               aria-label="Botellas cerradas de ${esc(i.nombre)}">
+        ${v.mide === 'ml'
+          ? `<input class="inp-chico${hecho && d.copeo !== '' ? ' coc-ok' : ''}" type="number"
+                 id="bc_${i.insumo_id}" placeholder="—" min="0" max="${v.cap}" step="any"
+                 value="${hecho ? d.copeo : ''}" inputmode="decimal"
+                 onchange="barraCapturar(${i.insumo_id})"
+                 aria-label="Mililitros que le quedan a la abierta de ${esc(i.nombre)}">`
+          : `<span class="bar-nd">—</span>`}
+        <span class="coc-ok-m" id="bm_${i.insumo_id}">${hecho ? '✓' : ''}</span>
+      </div>`;
+    }
+    h += '</div>';
+  }
+  return h + '</div>';
+}
+
+/* Esconde filas, nunca las redibuja, para no borrar lo que ya se tecleó
+   y todavía no se guarda. */
+function filtrarBarra() {
+  const txt = (document.getElementById('buscaBar')?.value || '').toLowerCase();
+  document.querySelectorAll('#zonaBar .bar-fila').forEach(f => {
+    f.style.display = f.getAttribute('data-n').includes(txt) ? '' : 'none';
+  });
 }
 
 /* ======================================================================
