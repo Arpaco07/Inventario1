@@ -206,7 +206,10 @@ line-height:1.25;white-space:normal}
 .porc-pill{background:none;color:var(--muted);cursor:pointer;font-variant-numeric:tabular-nums}
 .porc-pill.on{background:rgba(var(--accent-sv),.14);color:var(--accent);border-color:rgba(var(--accent-sv),.4)}
 /* --- Barra: dos numeros por botella, stock y copeo --- */
-.bar-fila{display:grid;grid-template-columns:1fr 58px 58px 16px;gap:7px;align-items:center;
+/* Con la columna de ayer son cuatro numeros por renglon. Se angostan las
+   cajas y se recorta el espacio del nombre: en barra los nombres son
+   cortos ("Don Julio 70") y caben en dos lineas sin estorbar. */
+.bar-fila{display:grid;grid-template-columns:1fr 46px 46px 14px;gap:5px;align-items:center;
 padding:9px 11px;border-bottom:1px solid var(--border)}
 .bar-fila:last-child{border-bottom:none}
 .bar-fila .inp-chico{width:100%;text-align:center;font-size:15px;font-weight:600;
@@ -216,7 +219,12 @@ font-variant-numeric:tabular-nums;padding:8px 4px}
 .bar-fila input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 .bar-fila input[type=number]{-moz-appearance:textfield;appearance:textfield}
 .bar-nd{text-align:center;color:var(--dim);font-size:13px}
-.bar-cab{display:grid;grid-template-columns:1fr 58px 58px 16px;gap:7px;
+.bar-fila.con-ayer,.bar-cab.con-ayer{grid-template-columns:1fr 46px 46px 46px 46px 14px}
+.bar-cab2{display:grid;grid-template-columns:1fr 97px 97px 14px;gap:5px;
+  padding:0 11px 2px;font-size:10px;color:var(--accent);text-align:center;
+  letter-spacing:.5px;text-transform:uppercase}
+.bar-fila .coc-ayer{width:46px;padding:9px 2px;font-size:13px}
+.bar-cab{display:grid;grid-template-columns:1fr 46px 46px 14px;gap:5px;
 padding:0 11px 5px;font-size:10px;color:var(--dim);text-align:center;
 letter-spacing:.4px;text-transform:uppercase}
 .bar-cab span:first-child{text-align:left}
@@ -647,6 +655,7 @@ async function irA(t, el) {
     ocultarCargando();
   }
   if (t === 'cocina') cocVista = 'capturar';
+  if (t === 'barra')  barVista = 'capturar';
   if (t === 'porcionar') {
     verCargando('Cargando las piezas...');
     porcVista = 'capturar'; porcPieza = null;
@@ -1081,7 +1090,7 @@ function mostrarVarianzaCocina(res) {
 }
 
 function vistaCocina() {
-  if (cocVista === 'historial') return vistaCocHistorial();
+  if (cocVista === 'historial') return vistaHistorial();
   if (!cocConteo) {
     return `
       <div class="caja-info" style="margin-bottom:14px">
@@ -1090,7 +1099,7 @@ function vistaCocina() {
         para que el conteo no se contamine.
       </div>
       ${puedeMover() ? `<div class="porc-nav" style="margin-bottom:6px">
-        <button class="btn-sec" onclick="cocHistIr(null)">📅 Ver el historial — ayer contra hoy</button>
+        <button class="btn-sec" onclick="histIr('COCINA', null)">📅 Ver el historial — ayer contra hoy</button>
       </div>` : ''}
       <div class="tarjeta">
         <div class="t-tit">🌙 El conteo de la noche</div>
@@ -1107,7 +1116,7 @@ function vistaCocina() {
     <div class="barra-sup">
       <input class="buscar" placeholder="🔍 Buscar..." oninput="filtrarCocina()" id="buscaCoc">
       ${puedeMover()
-        ? `<button class="btn-sec" onclick="cocHistIr(null)">📅 Historial</button>` : ''}
+        ? `<button class="btn-sec" onclick="histIr('COCINA', null)">📅 Historial</button>` : ''}
     </div>
     <div class="caja-info" style="margin-bottom:10px">
       Anota <b>cuánto hay</b> de cada cosa, en la unidad que dice a la derecha.
@@ -1213,7 +1222,7 @@ function filtrarCocina() {
 }
 
 /* ======================================================================
-   HISTORIAL DEL CONTEO DE COCINA  (Arturo, 1 nov 2026)
+   HISTORIAL DEL CONTEO — COCINA Y BARRA  (Arturo, 1 nov 2026)
 
    "Pero entonces no tiene historico el llenado, si lo hara diario le
     aparezca ayer esto hoy esto asi saber un historico."
@@ -1221,118 +1230,138 @@ function filtrarCocina() {
    Lo valioso no es ver la lista de ayer: es LA RESTA.
 
    Lo que habia ayer menos lo que hay hoy es el consumo del dia, y ese
-   numero hoy no existe en ningun lado — ni en el cuaderno de Carla ni en
-   la pantalla de cierre, que solo compara contra lo que el sistema creia.
+   numero no existia en ningun lado — ni en el cuaderno de Carla ni en la
+   pantalla de cierre, que solo compara contra lo que el sistema creia.
    Tres años contando diario sin restar es tres años de datos sin usar.
+
+   UNA SOLA PANTALLA PARA LAS DOS UBICACIONES. Cocina cuenta en kilos y
+   piezas, barra en botellas y mililitros, pero la pregunta es la misma:
+   cuanto habia, cuanto hay, cuanto se fue. Tener dos copias casi iguales
+   es la forma mas segura de que dentro de un mes digan cosas distintas.
+   Lo unico que cambia es la unidad, y eso lo decide histUnidad().
 
    Dos cuidados que hacen la diferencia entre un numero util y uno que
    asusta:
 
    1) SI EN MEDIO ENTRO MERCANCIA, LA RESTA SE QUEDA CORTA. Ayer 2 kg de
       tomate, hoy 5 kg: no "subio 3", es que llego una caja. Por eso cada
-      renglon trae lo que entro entre un conteo y otro, y solo se dice
-      "consumo" cuando no hubo entrada en medio.
+      renglon trae lo que entro entre un conteo y otro, y el consumo de
+      verdad se dice aparte.
 
-   2) UN CONTEO VACIO NO SIRVE DE COMPARACION. Si se compara contra una
-      prueba de 0 renglones, todo saldria "se acabo". El historial salta
-      esos y se compara contra el ultimo conteo que de verdad tiene datos.
-
-   OJO CON EL CONTEO A CIEGAS: mientras el conteo esta abierto, a quien
-   solo tiene cocina no se le muestra esta pantalla. Si la ve, cuenta
-   mirando lo de ayer y el dato se contamina — que es justo lo que el
-   conteo a ciegas evita. Carla y Arturo si la ven cuando quieran.
+   2) UN CONTEO VACIO O DE PRUEBA NO SIRVE DE COMPARACION. Si se compara
+      contra una prueba de dos renglones, todo lo demas sale "nuevo" y los
+      dos que si estaban salen con una diferencia inventada. La base los
+      salta: ver inv_auditoria.es_prueba.
    ====================================================================== */
 
-let cocVista = 'capturar';   // 'capturar' | 'historial'
-let cocHist  = null;         // lo que regresa inv_app_conteo_historial
+let histUbic  = 'COCINA';   // de que conteo se esta viendo el historial
+let histDatos = null;       // lo que regresa inv_app_conteo_historial
 
-/* De unidad base a lo que ve el cocinero. Es el inverso exacto de lo que
-   hace cocinaCapturar al guardar: si no se usa la MISMA regla, el historial
-   mostraria 2500 donde van 2.5 kg, o 160 piezas donde va 1. */
-function cocHistMostrar(r, total) {
-  if (total === null || total === undefined) return null;
+/* De unidad base a la unidad en que se cuenta. Es el inverso exacto de lo
+   que hace la captura al guardar: si no se usa la MISMA regla, el historial
+   mostraria 2500 donde van 2.5 kg, o 160 piezas donde va 1.
+     f = cuanto vale UNA unidad de pantalla, en unidad base. */
+function histUnidad(r, ubic) {
+  if (ubic === 'BARRA') {
+    const v = barUnidad(r);
+    /* En barra lo legible es la botella, no el mililitro: "quedan 3.2
+       botellas" se entiende; "quedan 2400 ml" hay que dividirlo mentalmente. */
+    if (v.mide === 'ml') return { u: (v.cap >= 1000 ? 'bot' : 'bot'), f: v.cap };
+    return { u: 'pz', f: 1 };
+  }
   const v = cocUnidad(r);
-  const n = v.porPieza ? Number(total) / (Number(v.gr) || 1)
-                       : Number(total) / v.f;
-  return Math.round(n * 1000) / 1000;
+  return v.porPieza ? { u: v.u, f: (Number(v.gr) || 1) } : { u: v.u, f: v.f };
 }
 
-function cocHistNum(n) {
+function histMostrar(r, total, ubic) {
+  if (total === null || total === undefined) return null;
+  const v = histUnidad(r, ubic);
+  return Math.round((Number(total) / (v.f || 1)) * 1000) / 1000;
+}
+
+function histNum(n) {
   if (n === null || n === undefined) return '—';
   return Number(n).toLocaleString('es-MX', { maximumFractionDigits: 2 });
 }
 
-async function cocHistAbrir(id) {
-  cocHist = await rpc('inv_app_conteo_historial',
-    { p_ubicacion: 'COCINA', p_auditoria_id: id || null });
-  cocVista = 'historial';
+async function histAbrir(ubic, id) {
+  histUbic  = ubic || 'COCINA';
+  histDatos = await rpc('inv_app_conteo_historial',
+    { p_ubicacion: histUbic, p_auditoria_id: id || null });
+  if (histUbic === 'BARRA') barVista = 'historial';
+  else                      cocVista = 'historial';
   pintar();
 }
 
-async function cocHistIr(id) {
-  if (!id) return;
+async function histIr(ubic, id) {
   verCargando('Buscando ese conteo...');
-  try { await cocHistAbrir(Number(id)); } catch (e) { avisar(e.message, true); }
+  try { await histAbrir(ubic, id ? Number(id) : null); }
+  catch (e) { avisar(e.message, true); }
   ocultarCargando();
 }
 
-function cocHistVolver() { cocVista = 'capturar'; pintar(); }
+function histVolver() {
+  if (histUbic === 'BARRA') barVista = 'capturar';
+  else                      cocVista = 'capturar';
+  pintar();
+}
 
-function vistaCocHistorial() {
-  const h    = cocHist || {};
-  const cab  = h.cabecera || {};
-  const ant  = h.antes || null;
+function vistaHistorial() {
+  const h     = histDatos || {};
+  const ubic  = histUbic;
+  const esBar = ubic === 'BARRA';
+  const cab   = h.cabecera || {};
+  const ant   = h.antes || null;
   const todos = h.lista_de_conteos || [];
   const filas = h.renglones || [];
+  const quien = esBar ? 'barra' : 'cocina';
 
   if (!h.hay) {
     return `
       <div class="caja-info" style="margin-bottom:12px">
-        📅 <b>Historial del conteo.</b> Todavía no hay ningún conteo guardado.
-        En cuanto se cierre el primero, aquí empieza a verse día contra día.
+        📅 <b>Historial del conteo.</b> Todavía no hay ningún conteo guardado
+        de ${quien}. En cuanto se cierre el primero, aquí empieza a verse
+        día contra día.
       </div>
-      <button class="btn-sec" onclick="cocHistVolver()">← Volver a Cocina</button>`;
+      <button class="btn-sec" onclick="histVolver()">← Volver</button>`;
   }
 
-  /* Cada renglon, ya convertido a la unidad del cocinero y con la cuenta
+  /* Cada renglon, ya convertido a la unidad de quien cuenta y con la cuenta
      hecha. Se calcula UNA vez aqui y se reusa abajo, para que el resumen de
      arriba y la tabla no puedan decir cosas distintas. */
   const vistos = filas.map(r => {
-    const v     = cocUnidad(r);
-    const hoy   = cocHistMostrar(r, r.hoy_total);
-    const antes = cocHistMostrar(r, r.antes_total);
+    const v     = histUnidad(r, ubic);
+    const hoy   = histMostrar(r, r.hoy_total, ubic);
+    const antes = histMostrar(r, r.antes_total, ubic);
     /* Lo que entro en medio, en la misma unidad. Si no se toma en cuenta, la
        resta miente justo donde mas duele: la arrachera baja de 18 a 13 y
        parece que se gastaron 5, cuando Chencho porciono 9 y en realidad se
        vendieron 14. */
-    const entro = Math.round((v.porPieza
-        ? (Number(r.entro_pz) || 0) + (Number(r.entro) || 0) / (Number(v.gr) || 1)
-        : (Number(r.entro) || 0) / v.f) * 1000) / 1000;
+    const entro = Math.round((((Number(r.entro_pz) || 0) * (v.f || 1))
+                            + (Number(r.entro) || 0)) / (v.f || 1) * 1000) / 1000;
     const dif   = (antes === null) ? null : Math.round((hoy - antes) * 1000) / 1000;
     /* Lo que de verdad se uso: lo que habia, mas lo que llego, menos lo que
        quedo. Cuando no entro nada es la misma resta de siempre. */
     const usado = (antes === null) ? null
                 : Math.round((antes + entro - hoy) * 1000) / 1000;
     /* El costo esta por unidad base (gramo, mililitro, pieza); la pantalla
-       habla en kilos, litros y piezas. */
-    const porU  = Number(r.costo_base || 0) * (v.porPieza ? (Number(v.gr) || 1) : v.f);
+       habla en kilos, litros, botellas y piezas. */
+    const porU  = Number(r.costo_base || 0) * (v.f || 1);
     return { r, v, hoy, antes, entro, dif, usado, porU };
   });
 
-  /* El resumen de arriba. El peso en pesos es lo que vuelve el conteo
-     accionable: "anoche se fueron $4,800 de cocina" se entiende solo. */
   let nBajo = 0, nSubio = 0, nIgual = 0, nNuevo = 0, pesos = 0;
   for (const x of vistos) {
-    if (x.dif === null)            { nNuevo++; continue; }
-    if (x.usado > 0.0005)          { pesos += x.usado * x.porU; }
-    if (x.dif < -0.0005)           { nBajo++;  }
-    else if (x.dif > 0.0005)       { nSubio++; }
-    else                           { nIgual++; }
+    if (x.dif === null)      { nNuevo++; continue; }
+    if (x.usado > 0.0005)    { pesos += x.usado * x.porU; }
+    if (x.dif < -0.0005)     { nBajo++;  }
+    else if (x.dif > 0.0005) { nSubio++; }
+    else                     { nIgual++; }
   }
 
   let html = `
     <div class="caja-info" style="margin-bottom:12px">
-      📅 <b>Historial del conteo de cocina.</b> Cada renglón trae lo que había
+      📅 <b>Historial del conteo de ${quien}.</b> Cada renglón trae lo que había
       el conteo pasado, lo que hay en este, y la diferencia. Esa diferencia
       <b>es el consumo</b> — siempre que en medio no haya entrado mercancía,
       y cuando entró, aquí se dice.
@@ -1340,19 +1369,19 @@ function vistaCocHistorial() {
 
     <div class="porc-nav">
       <button class="btn-sec" ${h.ir_atras ? '' : 'disabled'}
-        onclick="cocHistIr(${h.ir_atras || 0})">◀ ${
+        onclick="histIr('${ubic}', ${h.ir_atras || 0})">◀ ${
           h.ir_atras ? 'conteo anterior' : 'no hay antes'}</button>
       <div class="porc-dia">${esc(cab.fecha || '')}${
           cab.hora ? ' · ' + esc(cab.hora) : ''}</div>
       <button class="btn-sec" ${h.ir_adelante ? '' : 'disabled'}
-        onclick="cocHistIr(${h.ir_adelante || 0})">${
+        onclick="histIr('${ubic}', ${h.ir_adelante || 0})">${
           h.ir_adelante ? 'conteo siguiente' : 'no hay después'} ▶</button>
     </div>
 
     ${todos.length > 1 ? `<div class="porc-dias">
       ${todos.map(d => `<button class="pastilla porc-pill${
           Number(d.id) === Number(h.auditoria_id) ? ' on' : ''}"
-          onclick="cocHistIr(${d.id})">${esc(d.fecha)}${
+          onclick="histIr('${ubic}', ${d.id})">${esc(d.fecha)}${
           d.estado === 'ABIERTA' ? ' ·abierto' : ''}</button>`).join('')}
     </div>` : ''}
 
@@ -1395,18 +1424,17 @@ function vistaCocHistorial() {
 
   html += `
     <div class="barra-sup">
-      <input class="buscar" placeholder="🔍 Buscar..." oninput="filtrarCocHist()" id="buscaCocH">
+      <input class="buscar" placeholder="🔍 Buscar..." oninput="filtrarHist()" id="buscaHist">
     </div>
-    <div id="zonaCocH">`;
+    <div id="zonaHist">`;
 
-  /* Mismo orden de zonas que la captura: el Corte arriba, igual que en el
-     inventario de Carne, y de ahi para abajo lo demas de la cocina. */
   const zonas = [];
   for (const x of vistos) if (!zonas.includes(x.r.zona)) zonas.push(x.r.zona);
 
   for (const z of zonas) {
     const arr = vistos.filter(x => x.r.zona === z);
-    html += `<div class="titulo-sec">${esc(zonaBonita(z))}</div>
+    html += `<div class="titulo-sec">${
+        esBar ? esc(z) : esc(zonaBonita(z))}</div>
       <table class="tabla"><thead><tr>
         <th>Insumo</th>
         <th style="text-align:right">${ant ? esc(ant.fecha.slice(5)) : 'antes'}</th>
@@ -1424,10 +1452,10 @@ function vistaCocHistorial() {
         celda = 'igual';
       } else if (x.dif < 0) {
         color = 'var(--green)';
-        celda = '−' + cocHistNum(-x.dif) + ' ' + esc(v.u);
+        celda = '−' + histNum(-x.dif) + ' ' + esc(v.u);
       } else if (x.dif > 0) {
         color = 'var(--orange)';
-        celda = '+' + cocHistNum(x.dif) + ' ' + esc(v.u);
+        celda = '+' + histNum(x.dif) + ' ' + esc(v.u);
       } else {
         celda = 'igual';
       }
@@ -1437,15 +1465,15 @@ function vistaCocHistorial() {
          en vez de dejar que alguien lea 5 donde fueron 14. */
       if (x.entro > 0.0005 && x.dif !== null) {
         celda += `<br><small style="color:var(--muted)">entró ${
-          cocHistNum(x.entro)} · se usaron <b>${
-          cocHistNum(Math.max(x.usado, 0))} ${esc(v.u)}</b></small>`;
+          histNum(x.entro)} · se usaron <b>${
+          histNum(Math.max(x.usado, 0))} ${esc(v.u)}</b></small>`;
       }
 
       html += `<tr data-n="${esc((r.nombre || '').toLowerCase())}">
         <td>${esc(r.nombre)}</td>
         <td style="text-align:right">${x.antes === null ? '—'
-            : cocHistNum(x.antes) + ' ' + esc(v.u)}</td>
-        <td style="text-align:right"><b>${cocHistNum(x.hoy)} ${esc(v.u)}</b></td>
+            : histNum(x.antes) + ' ' + esc(v.u)}</td>
+        <td style="text-align:right"><b>${histNum(x.hoy)} ${esc(v.u)}</b></td>
         <td style="text-align:right;color:${color}">${celda}</td>
       </tr>`;
     }
@@ -1454,13 +1482,13 @@ function vistaCocHistorial() {
 
   return html + `</div>
     <button class="btn-sec" style="margin-top:14px"
-      onclick="cocHistVolver()">← Volver a Cocina</button>`;
+      onclick="histVolver()">← Volver a ${esc(quien.charAt(0).toUpperCase() + quien.slice(1))}</button>`;
 }
 
 /* Esconde renglones, no los redibuja: igual que en la captura. */
-function filtrarCocHist() {
-  const txt = (document.getElementById('buscaCocH')?.value || '').toLowerCase();
-  document.querySelectorAll('#zonaCocH tbody tr').forEach(f => {
+function filtrarHist() {
+  const txt = (document.getElementById('buscaHist')?.value || '').toLowerCase();
+  document.querySelectorAll('#zonaHist tbody tr').forEach(f => {
     const n = f.getAttribute('data-n') || '';
     f.style.display = n.includes(txt) ? '' : 'none';
   });
@@ -1946,6 +1974,9 @@ let barConteo = null;
 let barLista  = [];
 let barModo   = 'SEMANAL';
 let barHechos = {};   // insumo_id -> {stock, copeo}
+let barVista  = 'capturar';  // 'capturar' | 'historial'
+let barAyer   = {};   // insumo_id -> {stock, copeo} del conteo pasado
+let barAyerInfo = null;
 
 const esBarman = () => YO && /barra|bar\b|cantin/i.test(YO.rol || '');
 
@@ -1967,7 +1998,6 @@ async function barraArrancar() {
   let crudos = null;
   if (e && e.hay_abierto) {
     barConteo = e.auditoria_id;
-    barModo   = (e.tipo === 'DIARIO') ? 'DIARIO' : 'SEMANAL';
     crudos    = e.ya_capturado || {};
   } else {
     barConteo = null;
@@ -1988,19 +2018,60 @@ async function barraArrancar() {
       };
     }
   }
+
+  await barCargarAyer();
 }
 
-async function barraEmpezar(modo) {
-  barModo = modo;
+/* Lo del conteo pasado, para ponerlo AL LADO de los campos de hoy.
+   Arturo, 1 nov: "diario es ir viendo lo del dia anterior y lo que pondras
+   hoy, y asi sucesivamente."
+   En barra son DOS numeros, no uno: las cerradas y lo que le quedaba a la
+   destapada. Se muestran separados a proposito — juntarlos en un total
+   esconderia justo el dato que importa, que es cuanto se sirvio por copa.
+   Si esto falla, el conteo sigue: el dato de ayer es ayuda, no requisito. */
+async function barCargarAyer() {
+  barAyer = {}; barAyerInfo = null;
+  try {
+    const a = await rpc('inv_app_conteo_anterior',
+      { p_ubicacion: 'BARRA', p_excluir: barConteo });
+    if (!a || !a.hay) return;
+    barAyerInfo = a;
+    for (const i of barLista) {
+      const d = (a.valores || {})[String(i.insumo_id)];
+      if (!d) continue;
+      barAyer[i.insumo_id] = {
+        stock: (d.pz === null || d.pz === undefined) ? null : Number(d.pz),
+        copeo: (d.ct === null || d.ct === undefined) ? null : Number(d.ct)
+      };
+    }
+  } catch (e) { barAyerInfo = null; }
+}
+
+/* "ayer", "antier" o la fecha: el conteo no siempre es de ayer. */
+function barAyerEtiqueta() {
+  if (!barAyerInfo) return 'antes';
+  const d = Number(barAyerInfo.dias_atras);
+  if (d === 0) return 'hoy';
+  if (d === 1) return 'ayer';
+  if (d === 2) return 'antier';
+  return barAyerInfo.fecha ? barAyerInfo.fecha.slice(5) : 'antes';
+}
+
+/* UNA SOLA LISTA, LA COMPLETA, igual que en cocina. Preguntar entre el
+   conteo corto y el completo no tiene respuesta posible: la lista entera
+   tambien sirve de check list de la barra, asi que elegir el corto solo
+   serviria para contar de menos. */
+async function barraEmpezar() {
+  barModo = 'SEMANAL';           // 'SEMANAL' = la lista completa
   verCargando('Abriendo el conteo de barra...');
   try {
-    const tipo = (modo === 'DIARIO') ? 'CIERRE_TURNO' : 'SEMANAL';
     const id = await rpc('inv_app_auditoria_abrir',
-      { p_ubicacion: 'BARRA', p_tipo: tipo });
+      { p_ubicacion: 'BARRA', p_tipo: 'CIERRE_TURNO' });
     barConteo = (id && typeof id === 'object') ? id.id : id;
     barHechos = {};
     barLista = await rpc('inv_app_lista_conteo',
       { p_ubicacion: 'BARRA', p_modo: barModo }) || [];
+    await barCargarAyer();
     pintar();
   } catch (e) { avisar(e.message, true); }
   ocultarCargando();
@@ -2061,6 +2132,10 @@ async function barraCapturar(id) {
 }
 
 function barraMarcador() {
+  /* El mismo marcador junto al boton de guardar: ahi es donde se decide si ya
+     se termino, y nadie va a subir hasta arriba a comprobarlo. */
+  const z2 = document.getElementById('barMarcador2');
+  if (z2) z2.textContent = Object.keys(barHechos).length + ' de ' + barLista.length;
   const z = document.getElementById('barMarcador');
   if (!z) return;
   const hechos = Object.keys(barHechos).length;
@@ -2135,6 +2210,7 @@ function mostrarVarianzaBarra(res) {
 }
 
 function vistaBarra() {
+  if (barVista === 'historial') return vistaHistorial();
   if (!barConteo) {
     return `
       <div class="caja-info" style="margin-bottom:14px">
@@ -2142,20 +2218,15 @@ function vistaBarra() {
         números: <b>Stock</b> son las cerradas del anaquel y <b>Copeo</b> es lo que le
         queda a la destapada. El total lo saca el sistema.
       </div>
-      <div class="titulo-sec">¿Cuál conteo vas a hacer?</div>
-      <div class="rejilla">
-        <div class="tarjeta">
-          <div class="t-tit">📅 El de la semana</div>
-          <div class="t-sub">Toda la barra: licor, vino, cerveza y refresco.</div>
-          <button class="btn-pri" style="margin-top:8px"
-            onclick="barraEmpezar('SEMANAL')">Empezar</button>
-        </div>
-        <div class="tarjeta">
-          <div class="t-tit">🌙 El de cada noche</div>
-          <div class="t-sub">Solo lo que se mueve rápido.</div>
-          <button class="btn-pri" style="margin-top:8px"
-            onclick="barraEmpezar('DIARIO')">Empezar</button>
-        </div>
+      ${puedeMover() ? `<div class="porc-nav" style="margin-bottom:6px">
+        <button class="btn-sec" onclick="histIr('BARRA', null)">📅 Ver el historial — ayer contra hoy</button>
+      </div>` : ''}
+      <div class="tarjeta">
+        <div class="t-tit">🍸 El conteo de la barra</div>
+        <div class="t-sub">La lista completa: licor, vino, cerveza, refresco y
+          mezcladores. La misma siempre.</div>
+        <button class="btn-pri btn-grande" style="margin-top:10px"
+          onclick="barraEmpezar()">Empezar el conteo</button>
       </div>`;
   }
 
@@ -2164,17 +2235,28 @@ function vistaBarra() {
       <b id="barMarcador">${Object.keys(barHechos).length} de ${barLista.length}</b> contados</div>
     <div class="barra-sup">
       <input class="buscar" placeholder="🔍 Buscar botella..." oninput="filtrarBarra()" id="buscaBar">
-      ${esAdmin()
-        ? `<button class="btn-pri" id="barBtnCerrar" onclick="barraCerrar()">Cerrar y aplicar</button>`
-        : `<button class="btn-sec" onclick="avisar('Listo. Avísale a Carla para que lo cierre.')">Terminé</button>`}
+      ${puedeMover()
+        ? `<button class="btn-sec" onclick="histIr('BARRA', null)">📅 Historial</button>` : ''}
     </div>
     <div class="caja-info" style="margin-bottom:10px">
       <b>Stock</b>: cuántas botellas cerradas hay. <b>Copeo</b>: cuántos ml le quedan a
       la que está abierta — si no hay abierta, déjalo vacío. Cada dato se guarda solo
       al salir del campo.
+      ${barAyerInfo ? `<br><br>Los dos recuadros punteados de la izquierda son
+        <b>lo que se contó ${esc(barAyerEtiqueta())}</b>
+        (${esc(barAyerInfo.fecha || '')}), solo para verlos.`
+      /* Si no se dice, parece que la columna de ayer esta fallando. No falla:
+         es que este es el primer conteo de barra y no hay contra que compararlo. */
+      : `<br><br>📅 <b>Éste es el primer conteo de barra</b>, por eso todavía no
+        aparecen las columnas de <b>ayer</b>. En cuanto se cierre, el siguiente
+        ya va a traer al lado lo que se contó hoy.`}
     </div>
-    <div class="bar-cab">
-      <span></span><span>Stock</span><span>Copeo</span><span></span>
+    ${barAyerInfo ? `<div class="bar-cab2">
+      <span></span><span>${esc(barAyerEtiqueta())}</span><span>hoy</span><span></span>
+    </div>` : ''}
+    <div class="bar-cab${barAyerInfo ? ' con-ayer' : ''}">
+      <span></span>${barAyerInfo ? '<span>stock</span><span>copeo</span>' : ''}
+      <span>Stock</span><span>Copeo</span><span></span>
     </div>
     <div id="zonaBar">`;
 
@@ -2191,11 +2273,19 @@ function vistaBarra() {
       const v = barUnidad(i);
       const d = barHechos[i.insumo_id];
       const hecho = d !== undefined;
-      h += `<div class="bar-fila" data-n="${esc((i.nombre||'').toLowerCase())}">
+      const ay = barAyer[i.insumo_id];
+      h += `<div class="bar-fila${barAyerInfo ? ' con-ayer' : ''}" data-n="${esc((i.nombre||'').toLowerCase())}">
         <div class="coc-nom">${esc(i.nombre)}
           ${v.mide === 'ml'
             ? `<small>botella de ${v.cap} ml</small>`
             : (i.presentacion ? `<small>${esc(i.presentacion)}</small>` : '')}</div>
+        ${barAyerInfo ? `<div class="coc-ayer${
+            ay && ay.stock !== null ? '' : ' vacio'}"
+            title="Cerradas ${esc(barAyerEtiqueta())}">${
+            ay && ay.stock !== null ? ay.stock : '—'}</div>
+          <div class="coc-ayer${ay && ay.copeo ? '' : ' vacio'}"
+            title="Copeo ${esc(barAyerEtiqueta())}">${
+            ay && ay.copeo ? ay.copeo : '—'}</div>` : ''}
         <input class="inp-chico${hecho ? ' coc-ok' : ''}" type="number"
                id="bs_${i.insumo_id}" placeholder="0" min="0" step="1"
                value="${hecho ? d.stock : ''}" inputmode="numeric"
@@ -2213,7 +2303,26 @@ function vistaBarra() {
     }
     h += '</div>';
   }
-  return h + '</div>';
+
+  /* El boton va al FINAL, como en cocina. Arriba era facil de ignorar mientras
+     se baja por 154 botellas, y un conteo que nunca se cierra no ajusta nada:
+     es como no haberlo hecho. */
+  h += `</div>
+    <div class="coc-cierre">
+      <div class="coc-cierre-n"><b id="barMarcador2">${
+        Object.keys(barHechos).length} de ${barLista.length}</b> contados</div>
+      ${esAdmin()
+        ? `<button class="btn-pri btn-grande" id="barBtnCerrar"
+             ${Object.keys(barHechos).length ? '' : 'disabled'}
+             onclick="barraCerrar()">✅ Terminé — guardar el conteo</button>
+           <div class="coc-cierre-p">Esto cierra el conteo y deja la barra con lo
+             que acabas de contar. Lo que no se contó se queda igual.</div>`
+        : `<button class="btn-pri btn-grande"
+             onclick="avisar('Listo. Avísale a Carla para que lo cierre.')">✅ Terminé</button>
+           <div class="coc-cierre-p">Cada número ya se guardó solo. Avísale a
+             Carla para que lo cierre.</div>`}
+    </div>`;
+  return h;
 }
 
 /* Esconde filas, nunca las redibuja, para no borrar lo que ya se tecleó
