@@ -13,7 +13,7 @@
 // renglon por renglon. Si la senal se cae a medias, lo ya capturado esta a
 // salvo en la base y solo se pierde el renglon que estaba escribiendo.
 
-const CACHE = 'pares-inv-v1';
+const CACHE = 'pares-inv-v2';
 const SHELL = [
   './',
   './index.html',
@@ -54,10 +54,34 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
+  // LA PAGINA SIEMPRE FRESCA, SIN DEPENDER DE NADIE.
+  //
+  // 1 nov 2026: Arturo publicaba y seguia viendo la version vieja. No era el
+  // service worker ni Cloudflare (arpaco07.github.io NO pasa por Cloudflare,
+  // lo sirve GitHub directo): era el cache HTTP del navegador, que se mete
+  // ANTES que este fetch y le devuelve lo que ya tenia guardado.
+  //
+  // Por eso el HTML se pide con cache:'no-store' y un parametro que cambia
+  // cada vez: asi ninguna capa intermedia puede contestar con lo viejo. Son
+  // ~150 KB una vez al abrir; a cambio, nadie vuelve a trabajar con una
+  // version de ayer sin enterarse, que es mucho mas caro.
+  //
+  // El resto (iconos, manifest) si se deja cachear normal: no cambian.
+  const esPagina = (req.mode === 'navigate')
+                || /\.html($|\?)/.test(url.pathname)
+                || url.pathname === '/' || url.pathname.endsWith('/');
+
+  const pedir = esPagina
+    ? fetch(url.pathname + '?v=' + Date.now(), { cache: 'no-store' })
+    : fetch(req);
+
   event.respondWith(
-    fetch(req)
+    pedir
       .then((res) => {
+        if (!res || !res.ok) throw new Error('respuesta no utilizable');
         const copia = res.clone();
+        // Se guarda bajo la peticion ORIGINAL, sin el parametro: si no, el
+        // respaldo sin internet nunca se encontraria.
         caches.open(CACHE).then((cache) => cache.put(req, copia)).catch(() => {});
         return res;
       })

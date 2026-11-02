@@ -315,7 +315,7 @@ letter-spacing:.4px;text-transform:uppercase}
   <header>
     <div class="h-fila">
       <div>
-        <div class="marca" style="font-size:15px;letter-spacing:1px">LOS PARES<small style="letter-spacing:1px">Inventario</small></div>
+        <div class="marca" style="font-size:15px;letter-spacing:1px">LOS PARES<small style="letter-spacing:1px">Inventario <span id="versionApp"></span></small></div>
       </div>
       <div style="display:flex;align-items:center;gap:8px">
         <div id="pastillaUsr" class="pastilla"></div>
@@ -421,6 +421,11 @@ letter-spacing:.4px;text-transform:uppercase}
 /* ======================================================================
    CONFIGURACION — ya viene lista, no hay que tocar nada
    ====================================================================== */
+/* La version que esta corriendo, visible en la pantalla. Se sube a mano en
+   cada publicacion. Sirve para contestar en un segundo una pregunta que el
+   1 nov costo media hora: "esto que estas viendo, ¿es lo nuevo o lo viejo?" */
+const VERSION_APP = 'v8';
+
 const SUPA_URL  = 'https://nkpzjnfazuqlbvctyqzg.supabase.co';
 const SUPA_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rcHpqbmZhenVxbGJ2Y3R5cXpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzMDI0MDQsImV4cCI6MjEwMzg3ODQwNH0.qdzwLK7v92SW5OoZN5RxeMxs5UHm87P_ECEB90UnHIQ';
 const sb = supabase.createClient(SUPA_URL, SUPA_KEY);
@@ -582,7 +587,8 @@ async function arrancarApp() {
     p.style.color = col;
 
     llenarSelects();
-    ajustarPestanasPorNivel();
+    ponerVersion();
+  ajustarPestanasPorNivel();
     await cargarDatos();
     if (tab === 'cocina') { try { await cocinaArrancar(); } catch(e){ avisar(e.message, true); } }
     if (tab === 'barra')  { try { await barraArrancar();  } catch(e){ avisar(e.message, true); } }
@@ -677,6 +683,11 @@ async function irA(t, el) {
    (OPERATIVO), asi que filtrar por nivel le abriria el conteo de cocina
    a los cuatro meseros. Solo el de cocina ve Cocina, y solo ve esa. */
 const esCocinero = () => YO && /cocina|chef/i.test(YO.rol || '');
+
+function ponerVersion() {
+  const z = document.getElementById('versionApp');
+  if (z) z.textContent = VERSION_APP;
+}
 
 function ajustarPestanasPorNivel() {
   const soloCocina = esCocinero();
