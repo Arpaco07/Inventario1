@@ -424,7 +424,7 @@ letter-spacing:.4px;text-transform:uppercase}
 /* La version que esta corriendo, visible en la pantalla. Se sube a mano en
    cada publicacion. Sirve para contestar en un segundo una pregunta que el
    1 nov costo media hora: "esto que estas viendo, ¿es lo nuevo o lo viejo?" */
-const VERSION_APP = 'v8';
+const VERSION_APP = 'v9';
 
 const SUPA_URL  = 'https://nkpzjnfazuqlbvctyqzg.supabase.co';
 const SUPA_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rcHpqbmZhenVxbGJ2Y3R5cXpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzMDI0MDQsImV4cCI6MjEwMzg3ODQwNH0.qdzwLK7v92SW5OoZN5RxeMxs5UHm87P_ECEB90UnHIQ';
@@ -446,7 +446,7 @@ let auditoriaId = null, auditoriaUbi = null;
    carnes, verduras, barra fria, insumos varios. Arturo, 31 oct.     */
 let cocConteo = null;   // id de la auditoria abierta en COCINA
 let cocLista  = [];     // los renglones que toca contar
-let cocModo   = 'DIARIO';
+let cocModo   = 'SEMANAL';   // siempre la lista completa (Arturo, 1 nov)
 let cocHechos = {};     // insumo_id -> true cuando ya se guardo
 let cocAyer   = {};     // insumo_id -> lo que se conto la vez pasada
 let cocAyerInfo = null; // de que conteo salio ese dato
