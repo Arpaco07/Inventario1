@@ -209,7 +209,7 @@ line-height:1.25;white-space:normal}
 /* Con la columna de ayer son cuatro numeros por renglon. Se angostan las
    cajas y se recorta el espacio del nombre: en barra los nombres son
    cortos ("Don Julio 70") y caben en dos lineas sin estorbar. */
-.bar-fila{display:grid;grid-template-columns:1fr 46px 46px 14px;gap:5px;align-items:center;
+.bar-fila{display:grid;grid-template-columns:1fr 42px 56px 14px;gap:5px;align-items:center;
 padding:9px 11px;border-bottom:1px solid var(--border)}
 .bar-fila:last-child{border-bottom:none}
 .bar-fila .inp-chico{width:100%;text-align:center;font-size:15px;font-weight:600;
@@ -219,12 +219,14 @@ font-variant-numeric:tabular-nums;padding:8px 4px}
 .bar-fila input[type=number]::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
 .bar-fila input[type=number]{-moz-appearance:textfield;appearance:textfield}
 .bar-nd{text-align:center;color:var(--dim);font-size:13px}
-.bar-fila.con-ayer,.bar-cab.con-ayer{grid-template-columns:1fr 46px 46px 46px 46px 14px}
-.bar-cab2{display:grid;grid-template-columns:1fr 97px 97px 14px;gap:5px;
+.bar-eco{color:var(--green);font-weight:600;margin-left:4px}
+.bar-fila.con-ayer,.bar-cab.con-ayer{grid-template-columns:1fr 42px 56px 42px 56px 14px}
+.bar-cab2{display:grid;grid-template-columns:1fr 103px 103px 14px;gap:5px;
   padding:0 11px 2px;font-size:10px;color:var(--accent);text-align:center;
   letter-spacing:.5px;text-transform:uppercase}
-.bar-fila .coc-ayer{width:46px;padding:9px 2px;font-size:13px}
-.bar-cab{display:grid;grid-template-columns:1fr 46px 46px 14px;gap:5px;
+.bar-fila .coc-ayer{width:100%;padding:9px 2px;font-size:12.5px}
+.bar-fila .inp-chico{font-size:14px;padding:9px 3px}
+.bar-cab{display:grid;grid-template-columns:1fr 42px 56px 14px;gap:5px;
 padding:0 11px 5px;font-size:10px;color:var(--dim);text-align:center;
 letter-spacing:.4px;text-transform:uppercase}
 .bar-cab span:first-child{text-align:left}
@@ -1977,6 +1979,29 @@ let barHechos = {};   // insumo_id -> {stock, copeo}
 let barVista  = 'capturar';  // 'capturar' | 'historial'
 let barAyer   = {};   // insumo_id -> {stock, copeo} del conteo pasado
 let barAyerInfo = null;
+let barPesos  = {};   // insumo_id -> {cap, lleno, tara, dens} de las que se pesan
+
+/* Si esta botella se puede poner en la bascula. Es la pregunta que decide
+   TODO en esta pantalla: que se le pide al que cuenta, que unidad se le
+   enseña, y si lo que teclea son gramos o mililitros. */
+function barSePesa(id) {
+  const p = barPesos[String(id)];
+  return !!(p && p.tara !== null && p.tara !== undefined && Number(p.dens) > 0);
+}
+
+/* De lo que marca la bascula a lo que queda en la botella. Es la misma cuenta
+   que hace inv_ml_por_peso en la base; aqui se repite nada mas para poder
+   enseñarlo en vivo mientras teclean, sin ir y venir por cada botella.
+   La base sigue siendo la que manda: lo que se guarda son los gramos. */
+function barMlDePeso(id, g) {
+  const p = barPesos[String(id)];
+  if (!p || !(Number(p.dens) > 0)) return null;
+  let ml = (Number(g) - Number(p.tara)) / Number(p.dens);
+  if (!isFinite(ml)) return null;
+  if (ml < 0) ml = 0;
+  if (p.cap && ml > Number(p.cap)) ml = Number(p.cap);
+  return Math.round(ml);
+}
 
 const esBarman = () => YO && /barra|bar\b|cantin/i.test(YO.rol || '');
 
@@ -2012,13 +2037,19 @@ async function barraArrancar() {
     for (const i of barLista) {
       const d = crudos[String(i.insumo_id)];
       if (!d) continue;
+      /* Si se peso, lo que vuelve al campo son los GRAMOS, que es lo que se
+         tecleo. Devolverle los ml convertidos seria cambiarle el dato a quien
+         lo capturo, y la siguiente vez ya no cuadraria con la bascula. */
+      const pesado = (d.pg !== null && d.pg !== undefined);
       barHechos[i.insumo_id] = {
         stock: (d.pz === null || d.pz === undefined) ? '' : Number(d.pz),
-        copeo: (d.ct === null || d.ct === undefined) ? '' : Number(d.ct)
+        copeo: pesado ? Number(d.pg)
+             : ((d.ct === null || d.ct === undefined) ? '' : Number(d.ct))
       };
     }
   }
 
+  await barCargarPesos();
   await barCargarAyer();
 }
 
@@ -2029,6 +2060,12 @@ async function barraArrancar() {
    destapada. Se muestran separados a proposito — juntarlos en un total
    esconderia justo el dato que importa, que es cuanto se sirvio por copa.
    Si esto falla, el conteo sigue: el dato de ayer es ayuda, no requisito. */
+async function barCargarPesos() {
+  try {
+    barPesos = await rpc('inv_app_pesos_botella', { p_ubicacion: 'BARRA' }) || {};
+  } catch (e) { barPesos = {}; }
+}
+
 async function barCargarAyer() {
   barAyer = {}; barAyerInfo = null;
   try {
@@ -2039,9 +2076,12 @@ async function barCargarAyer() {
     for (const i of barLista) {
       const d = (a.valores || {})[String(i.insumo_id)];
       if (!d) continue;
+      const pesado = (d.pg !== null && d.pg !== undefined);
       barAyer[i.insumo_id] = {
         stock: (d.pz === null || d.pz === undefined) ? null : Number(d.pz),
-        copeo: (d.ct === null || d.ct === undefined) ? null : Number(d.ct)
+        copeo: pesado ? Number(d.pg)
+             : ((d.ct === null || d.ct === undefined) ? null : Number(d.ct)),
+        pesado: pesado
       };
     }
   } catch (e) { barAyerInfo = null; }
@@ -2071,6 +2111,7 @@ async function barraEmpezar() {
     barHechos = {};
     barLista = await rpc('inv_app_lista_conteo',
       { p_ubicacion: 'BARRA', p_modo: barModo }) || [];
+    await barCargarPesos();
     await barCargarAyer();
     pintar();
   } catch (e) { avisar(e.message, true); }
@@ -2113,16 +2154,30 @@ async function barraCapturar(id) {
 
   if (marca) marca.textContent = '…';
   try {
+    /* LA BOTELLA QUE SE PESA MANDA GRAMOS, NO MILILITROS. La base convierte
+       con el peso del vidrio y la densidad reales de ESA botella. Mandar los
+       ml ya convertidos desde aqui seria guardar una cuenta en vez del dato
+       medido: el dia que se corrija un peso o una densidad, lo viejo quedaria
+       mal para siempre y nadie sabria por que. */
+    const pesa = barSePesa(id);
     await rpc('inv_app_auditoria_capturar', {
       p_auditoria_id: barConteo, p_insumo_id: id,
       p_piezas_cerradas: Math.round(stock || 0),
-      p_peso_g: null,
-      p_cantidad_suelta: copeo
+      p_peso_g:          pesa ? copeo : null,
+      p_cantidad_suelta: pesa ? null  : copeo
     });
     barHechos[id] = { stock: stock === null ? '' : stock,
                       copeo: copeo === null ? '' : copeo };
     if (marca) marca.textContent = '✓';
     cs.classList.add('coc-ok'); if (cc && copeo !== null) cc.classList.add('coc-ok');
+    /* El eco: "760 g = 440 ml". Sirve de verificacion en el momento — si sale
+       un numero absurdo, el peso de esa botella esta mal y se ve enseguida,
+       no al cerrar el mes. */
+    const eco = document.getElementById('be_' + id);
+    if (eco) {
+      const ml = (pesa && copeo !== null) ? barMlDePeso(id, copeo) : null;
+      eco.textContent = (ml === null) ? '' : ml + ' ml';
+    }
     barraMarcador();
   } catch (e) {
     if (marca) marca.textContent = '⚠️';
@@ -2239,9 +2294,15 @@ function vistaBarra() {
         ? `<button class="btn-sec" onclick="histIr('BARRA', null)">📅 Historial</button>` : ''}
     </div>
     <div class="caja-info" style="margin-bottom:10px">
-      <b>Stock</b>: cuántas botellas cerradas hay. <b>Copeo</b>: cuántos ml le quedan a
-      la que está abierta — si no hay abierta, déjalo vacío. Cada dato se guarda solo
-      al salir del campo.
+      <b>Stock</b>: cuántas botellas cerradas hay, enteras.
+      <b>Copeo</b>: la que está destapada — si no hay destapada, déjalo vacío.
+      <br><br>🔎 <b>El copeo se pesa.</b> Pon la botella abierta en la báscula y
+      teclea <b>los gramos tal cual</b>, sin restarle nada: el sistema ya sabe
+      cuánto pesa el vidrio de cada botella y saca los mililitros solo. Debajo
+      del nombre te va a decir cuántos ml salieron, para que veas si cuadra.
+      <br>En las que todavía no tienen su peso capturado dice
+      <b>"en ml, sin peso todavía"</b>: ésas sí van a ojo, por ahora.
+      Cada dato se guarda solo al salir del campo.
       ${barAyerInfo ? `<br><br>Los dos recuadros punteados de la izquierda son
         <b>lo que se contó ${esc(barAyerEtiqueta())}</b>
         (${esc(barAyerInfo.fecha || '')}), solo para verlos.`
@@ -2273,11 +2334,17 @@ function vistaBarra() {
       const v = barUnidad(i);
       const d = barHechos[i.insumo_id];
       const hecho = d !== undefined;
+      const pesa  = (v.mide === 'ml') && barSePesa(i.insumo_id);
+      const ecoIni = (pesa && hecho && d.copeo !== '' && d.copeo !== null)
+        ? ' → ' + barMlDePeso(i.insumo_id, d.copeo) + ' ml' : '';
       const ay = barAyer[i.insumo_id];
       h += `<div class="bar-fila${barAyerInfo ? ' con-ayer' : ''}" data-n="${esc((i.nombre||'').toLowerCase())}">
         <div class="coc-nom">${esc(i.nombre)}
           ${v.mide === 'ml'
-            ? `<small>botella de ${v.cap} ml</small>`
+            ? `<small>botella de ${v.cap} ml · ${pesa
+                 ? 'la abierta <b>se pesa</b>'
+                 : 'la abierta <b>en ml</b>, sin peso todavía'}<span
+                 class="bar-eco" id="be_${i.insumo_id}">${ecoIni}</span></small>`
             : (i.presentacion ? `<small>${esc(i.presentacion)}</small>` : '')}</div>
         ${barAyerInfo ? `<div class="coc-ayer${
             ay && ay.stock !== null ? '' : ' vacio'}"
@@ -2293,10 +2360,13 @@ function vistaBarra() {
                aria-label="Botellas cerradas de ${esc(i.nombre)}">
         ${v.mide === 'ml'
           ? `<input class="inp-chico${hecho && d.copeo !== '' ? ' coc-ok' : ''}" type="number"
-                 id="bc_${i.insumo_id}" placeholder="—" min="0" max="${v.cap}" step="any"
+                 id="bc_${i.insumo_id}" placeholder="${pesa ? 'g' : 'ml'}" min="0"
+                 ${pesa ? '' : 'max="' + v.cap + '"'} step="any"
                  value="${hecho ? d.copeo : ''}" inputmode="decimal"
                  onchange="barraCapturar(${i.insumo_id})"
-                 aria-label="Mililitros que le quedan a la abierta de ${esc(i.nombre)}">`
+                 aria-label="${pesa
+                   ? 'Lo que marca la báscula, en gramos, con la botella abierta de '
+                   : 'Mililitros que le quedan a la abierta de '}${esc(i.nombre)}">`
           : `<span class="bar-nd">—</span>`}
         <span class="coc-ok-m" id="bm_${i.insumo_id}">${hecho ? '✓' : ''}</span>
       </div>`;
