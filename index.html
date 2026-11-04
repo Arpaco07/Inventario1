@@ -52,6 +52,15 @@ b,strong{font-weight:650}
 
 /* ---------- LOGIN ---------- */
 #pantallaLogin{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+#avisoLogin{display:none;margin:10px 0 2px;padding:10px 12px;border-radius:10px;
+  font-size:12.5px;line-height:1.45;text-align:left;
+  background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.4);color:#fcd34d}
+/* El reloj de lo que falta subir. Se ve distinto de la palomita a proposito:
+   palomita es "ya esta en el servidor", reloj es "lo tengo yo, no se ha ido". */
+.pend-aviso{margin:10px 0;padding:11px 13px;border-radius:10px;font-size:12.5px;
+  line-height:1.45;background:rgba(245,158,11,.12);
+  border:1px solid rgba(245,158,11,.4);color:#fcd34d}
+.inp-pend{border-color:var(--orange) !important}
 .caja-login{background:var(--bg2);border:1px solid var(--border);border-radius:18px;padding:36px 28px;width:100%;max-width:340px;text-align:center}
 .marca{font-family:Georgia,'Times New Roman',serif;font-weight:700;font-size:21px;color:var(--accent);letter-spacing:3px}
 .marca small{display:block;font-family:-apple-system,'Segoe UI',system-ui,sans-serif;font-size:10px;color:var(--dim);letter-spacing:2.5px;margin-top:5px;font-weight:500}
@@ -292,6 +301,10 @@ letter-spacing:.4px;text-transform:uppercase}
       <div class="punto" id="p2"></div><div class="punto" id="p3"></div>
     </div>
     <div id="errorPin"></div>
+    <!-- Aviso que NO se borra solo: aqui se le dice que su conteo esta a
+         salvo en el telefono. Si no se dice, volver al PIN a media captura
+         se siente igual que perderlo todo. -->
+    <div id="avisoLogin"></div>
     <div class="teclado">
       <button class="tecla" onclick="tecla('1')">1</button>
       <button class="tecla" onclick="tecla('2')">2</button>
@@ -424,7 +437,7 @@ letter-spacing:.4px;text-transform:uppercase}
 /* La version que esta corriendo, visible en la pantalla. Se sube a mano en
    cada publicacion. Sirve para contestar en un segundo una pregunta que el
    1 nov costo media hora: "esto que estas viendo, ¿es lo nuevo o lo viejo?" */
-const VERSION_APP = 'v10';
+const VERSION_APP = 'v11';
 
 const SUPA_URL  = 'https://nkpzjnfazuqlbvctyqzg.supabase.co';
 const SUPA_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rcHpqbmZhenVxbGJ2Y3R5cXpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzMDI0MDQsImV4cCI6MjEwMzg3ODQwNH0.qdzwLK7v92SW5OoZN5RxeMxs5UHm87P_ECEB90UnHIQ';
@@ -495,12 +508,198 @@ async function rpc(nombre, args = {}) {
   const { data, error } = await sb.rpc(nombre, { p_token: TOKEN, ...args });
   if (error) {
     if (/Sesi[oó]n no v[aá]lida|expirada/i.test(error.message)) {
-      cerrarSesionLocal();
-      throw new Error('Tu sesión expiró. Vuelve a entrar con tu PIN.');
+      /* Las sesiones duran 12 horas y un conteo de 153 botellas empieza una
+         noche y acaba la otra, asi que esto le pasa a quien esta contando, no
+         a un curioso. Se va al PIN porque el token ya no sirve — pero lo
+         tecleado quedo escrito en el telefono y se le dice. */
+      cerrarSesionLocal('Tu sesión se venció por el tiempo, no hiciste nada mal. '
+        + 'Lo que ya contaste está guardado en este teléfono: vuelve a entrar '
+        + 'con tu PIN y se sube solo.');
+      throw new Error('SESION_VENCIDA');
     }
     throw new Error(error.message);
   }
   return data;
+}
+
+/* ======================================================================
+   RED DE SEGURIDAD DEL CONTEO  (Arturo, 3 nov 2026)
+
+   "Fallo el sistema, corrige todos los pormenores."
+
+   Tres veces paso lo mismo y las tres se conto igual: "otra vez se borro
+   todo". No era el conteo, era esto:
+
+   Lo que alguien teclea vivia en UN solo lugar — la pantalla — hasta que el
+   servidor contestaba que si. Cualquier cosa que redibujara la pantalla
+   antes de esa respuesta lo borraba sin dejar rastro. Y la peor de todas:
+   cuando la sesion se vencia a media captura, la app lo devolvia a la
+   pantalla del PIN y el conteo entero desaparecia de golpe.
+
+   Ahora lo tecleado se escribe PRIMERO en el telefono y despues se manda.
+   Si el envio falla —sesion vencida, sin internet, conteo cerrado por
+   otro— el numero sigue ahi, marcado con un reloj, y se vuelve a mandar
+   solo en cuanto se pueda. Se puede cerrar la app, irse la luz o vencerse
+   la sesion: no se pierde un numero.
+
+   Por que en localStorage y no en sessionStorage: sessionStorage se muere
+   con la pestaña, y el celular mata pestañas en segundo plano todo el
+   tiempo. localStorage aguanta que se cierre la app y que se apague el
+   telefono, que es justo lo que pasa en una cocina.
+   ====================================================================== */
+const PEND_K = 'inv_pendientes';
+
+let PEND = (() => {
+  try { return JSON.parse(localStorage.getItem(PEND_K) || '{}') || {}; }
+  catch (e) { return {}; }     // si el telefono no deja guardar, se sigue sin red
+})();
+
+function pendGuardar() {
+  try { localStorage.setItem(PEND_K, JSON.stringify(PEND)); } catch (e) {}
+}
+function pendK(ubic, conteo) { return ubic + ':' + conteo; }
+function pendDe(ubic, conteo) { return PEND[pendK(ubic, conteo)] || {}; }
+function pendCuantos(ubic, conteo) { return Object.keys(pendDe(ubic, conteo)).length; }
+function pendHay(ubic, conteo, id) { return pendDe(ubic, conteo)[String(id)] !== undefined; }
+
+/* Cuantos quedan en TODA la libreta, sin importar de que conteo. Es lo que se
+   le dice en la pantalla del PIN, donde ya no se sabe en que conteo estaba. */
+function pendTotal() {
+  let n = 0;
+  for (const k of Object.keys(PEND)) n += Object.keys(PEND[k]).length;
+  return n;
+}
+
+/* Apuntar lo tecleado ANTES de mandarlo. Este es el orden que importa: si se
+   apuntara despues, un envio que falla no dejaria rastro, que es como estaba. */
+function pendPoner(ubic, conteo, id, args) {
+  const k = pendK(ubic, conteo);
+  if (!PEND[k]) PEND[k] = {};
+  PEND[k][String(id)] = args;
+  pendGuardar();
+}
+function pendQuitar(ubic, conteo, id) {
+  const k = pendK(ubic, conteo);
+  if (!PEND[k]) return;
+  delete PEND[k][String(id)];
+  if (!Object.keys(PEND[k]).length) delete PEND[k];
+  pendGuardar();
+}
+
+/* Tirar la libreta de los conteos que ya se cerraron: si no, el aviso del
+   reloj se queda para siempre pidiendo subir algo que ya no tiene a donde. */
+function pendOlvidar(ubic, conteo) {
+  delete PEND[pendK(ubic, conteo)];
+  pendGuardar();
+}
+
+/* Reintentar lo pendiente. Se llama al entrar, al apretar el boton grande y
+   cuando vuelve el internet. Uno por uno a proposito: si uno falla, los demas
+   sí tienen que subir. */
+async function pendMandar(ubic, conteo) {
+  if (!conteo) return { subidos: 0, quedan: 0, error: null };
+  const p = pendDe(ubic, conteo);
+  let subidos = 0, err = null;
+  for (const id of Object.keys(p)) {
+    try {
+      await rpc('inv_app_auditoria_capturar', p[id]);
+      pendQuitar(ubic, conteo, id);
+      subidos++;
+    } catch (e) {
+      err = e.message;
+      /* Si el conteo ya se cerro, reintentar los demas es inutil y solo
+         llenaria la pantalla de errores iguales. */
+      if (/no existe o ya esta cerrado/i.test(e.message)) break;
+      if (e.message === 'SESION_VENCIDA') break;
+    }
+  }
+  return { subidos: subidos, quedan: pendCuantos(ubic, conteo), error: err };
+}
+
+/* El encabezado del conteo cuando hay cosas sin subir. Tiene que decir
+   exactamente dos cosas: que no se perdio nada, y que se va a subir solo. */
+function pendAviso(ubic, conteo) {
+  const n = pendCuantos(ubic, conteo);
+  if (!n) return '';
+  return `<div class="pend-aviso">⏳ <b>${n} número${n === 1 ? '' : 's'} sin subir.</b>
+    Están guardados en este teléfono, no se perdieron. Se suben solos cuando
+    haya internet; también puedes apretar
+    <a href="#" onclick="pendReintentar('${ubic}');return false"><b>reintentar ahora</b></a>.</div>`;
+}
+
+async function pendReintentar(ubic) {
+  const conteo = (ubic === 'BARRA') ? barConteo : cocConteo;
+  if (!conteo) return;
+  verCargando('Subiendo lo que faltaba...');
+  const r = await pendMandar(ubic, conteo);
+  ocultarCargando();
+  if (r.subidos) avisar('Se subieron ' + r.subidos + ' ✓');
+  if (r.quedan)  avisar('Quedan ' + r.quedan + ' sin subir' +
+                        (r.error ? ': ' + r.error : '. Revisa el internet.'), true);
+  if (ubic === 'BARRA') { await barraArrancar(); } else { await cocinaArrancar(); }
+  pintar();
+}
+
+/* ======================================================================
+   EL TOPE  (Arturo, 2 nov: "el tope por que quieres hacerlo")
+
+   Porque tres noches seguidas se teclearon kilos en el campo de gramos:
+   1.11 en el Old Parr, 0.73 en el Finca las Moras. El sistema lo leyo como
+   un gramo y pico, o sea botella vacia, y dio de baja el licor.
+
+   La regla: se frena SOLO lo imposible, nunca lo raro. Un numero raro puede
+   ser cierto —una caja que llego sin avisar— y frenarlo pararia el conteo,
+   que es peor que un dato malo. Lo imposible no: 1.11 gramos no caben en
+   una botella, pesan menos que el vidrio vacio.
+   ====================================================================== */
+function topeBarra(id, stock, copeo) {
+  const i = barLista.find(x => x.insumo_id === id);
+  if (!i) return null;
+  const cap = Number(i.capacidad_ml) || 0;
+
+  if (copeo !== null && barSePesa(id)) {
+    /* Se teclean GRAMOS. El vidrio vacio ya pesa la tara, asi que cualquier
+       cosa por debajo de eso es un kilo escrito como gramo. */
+    const p = barPesos[String(id)] || {};
+    const tara = Number(p.tara) || 0;
+    const dens = Number(p.dens) || 1;
+    if (tara > 0 && copeo < tara * 0.6) {
+      const enGramos = copeo * 1000;
+      return `${i.nombre}: ${copeo} g es menos de lo que pesa la botella vacía `
+           + `(${Math.round(tara)} g). ¿Son kilos? Entonces va `
+           + `<b>${Math.round(enGramos)}</b>, en gramos.`;
+    }
+    const lleno = tara + cap * dens;
+    if (lleno > 0 && copeo > lleno * 1.25) {
+      return `${i.nombre}: ${copeo} g es más de lo que pesa la botella llena `
+           + `(${Math.round(lleno)} g). Revisa la báscula.`;
+    }
+    return null;
+  }
+
+  /* Sin pesar se teclean mililitros, y no caben mas de los que mide. */
+  if (copeo !== null && cap > 0 && copeo > cap) {
+    return `${i.nombre}: le caben ${Math.round(cap)} ml y pusiste ${copeo}. `
+         + `Lo abierto es lo que le queda a UNA botella, no el total.`;
+  }
+  if (stock !== null && stock > 999) {
+    return `${i.nombre}: ${stock} botellas cerradas no cabe. Revisa el número.`;
+  }
+  return null;
+}
+
+function topeCocina(id, n) {
+  const i = cocLista.find(x => x.insumo_id === id);
+  if (!i) return null;
+  const v = cocUnidad(i);
+  /* Un restaurante no guarda mas de una tonelada ni mil litros de nada. Lo
+     de abajo no es una opinion sobre cuanto deberia haber: es el punto en que
+     el numero dejo de ser una cantidad y es un error de dedo. */
+  const limite = (v.u === 'kg' || v.u === 'lt') ? 1000 : 9999;
+  if (n > limite) {
+    return `${i.nombre}: ${n} ${v.u} no cabe en la cocina. Revisa el número.`;
+  }
+  return null;
 }
 
 /* ======================================================================
@@ -546,12 +745,28 @@ function limpiarError(m) {
   return m.replace(/^.*?(PIN incorrecto|Demasiados intentos[^.]*\.).*$/i, '$1')
           .replace(/\s+/g, ' ').trim().slice(0, 120) || m.slice(0, 120);
 }
-function cerrarSesionLocal() {
+function cerrarSesionLocal(aviso) {
   TOKEN = null; YO = null;
   sessionStorage.removeItem('inv_token');
   sessionStorage.removeItem('inv_yo');
   document.getElementById('pantallaApp').style.display = 'none';
   document.getElementById('pantallaLogin').style.display = 'flex';
+  /* OJO: no se toca inv_pendientes. Ahi esta el conteo de quien se quedo a
+     medias, y es lo unico que lo salva. */
+  const z = document.getElementById('avisoLogin');
+  if (!z) return;
+  const n = pendTotal();
+  if (aviso) {
+    z.innerHTML = '⏳ ' + esc(aviso)
+      + (n ? '<br><br><b>' + n + ' número' + (n === 1 ? '' : 's') + '</b> esperando subir.' : '');
+    z.style.display = 'block';
+  } else if (n) {
+    z.innerHTML = '⏳ Hay <b>' + n + ' número' + (n === 1 ? '' : 's') + '</b> de un conteo '
+      + 'sin subir en este teléfono. Entra con tu PIN y se suben solos.';
+    z.style.display = 'block';
+  } else {
+    z.style.display = 'none';
+  }
 }
 async function salir() {
   if (TOKEN) { try { await sb.rpc('inv_salir', { p_token: TOKEN }); } catch (e) {} }
@@ -592,6 +807,17 @@ async function arrancarApp() {
     await cargarDatos();
     if (tab === 'cocina') { try { await cocinaArrancar(); } catch(e){ avisar(e.message, true); } }
     if (tab === 'barra')  { try { await barraArrancar();  } catch(e){ avisar(e.message, true); } }
+
+    /* Lo que quedo apuntado en el telefono y no habia podido subir — porque se
+       vencio la sesion, se fue el internet o se cerro la app — sube aqui, solo,
+       sin que nadie tenga que acordarse. */
+    if (cocConteo) { const r = await pendMandar('COCINA', cocConteo);
+      if (r.subidos) avisar('Se subieron ' + r.subidos + ' de cocina que faltaban ✓');
+      if (cocConteo) await cocinaArrancar(); }
+    if (barConteo) { const r = await pendMandar('BARRA', barConteo);
+      if (r.subidos) avisar('Se subieron ' + r.subidos + ' de barra que faltaban ✓');
+      if (barConteo) await barraArrancar(); }
+
     pintar();
   } catch (e) {
     ocultarCargando();
@@ -1002,10 +1228,18 @@ async function cocinaEmpezar() {
 /* Se guarda al salir del campo, uno por uno. Si se va la luz a media
    cocina, lo ya capturado no se pierde. */
 async function cocinaCapturar(id) {
-  if (!cocConteo) return;
   const campo = document.getElementById('cc_' + id);
   const marca = document.getElementById('cm_' + id);
   if (!campo) return;
+  /* Antes esto era un "return" callado: el cocinero tecleaba y la pantalla no
+     decia ni si ni no, porque no habia conteo abierto. Media hora de trabajo
+     cayendo en el vacio sin una sola señal. */
+  if (!cocConteo) {
+    if (marca) marca.textContent = '⚠️';
+    avisar('No hay un conteo abierto, así que esto no se está guardando. '
+         + 'Vuelve a entrar a Cocina y aprieta "Empezar el conteo".', true);
+    return;
+  }
   const txt = (campo.value || '').trim().replace(',', '.');
   if (txt === '') { delete cocHechos[id]; if (marca) marca.textContent = ''; cocinaMarcador(); return; }
   const n = parseFloat(txt);
@@ -1013,6 +1247,17 @@ async function cocinaCapturar(id) {
 
   const ins = cocLista.find(x => x.insumo_id === id);
   const v = ins ? cocUnidad(ins) : { f: 1 };
+
+  /* El tope, antes de apuntar nada: un numero imposible no se guarda ni se
+     encola, porque encolarlo seria insistir en subir un error. */
+  const malo = topeCocina(id, n);
+  if (malo) {
+    if (marca) marca.textContent = '⚠️';
+    campo.classList.remove('coc-ok');
+    avisar(malo, true);
+    return;
+  }
+
   if (marca) marca.textContent = '…';
   try {
     /* LAS PIEZAS PUEDEN SER FRACCIONARIAS. En el Corte de Arturo hay 23.5
@@ -1033,18 +1278,33 @@ async function cocinaCapturar(id) {
     } else {
       suelto = n * v.f;
     }
-    await rpc('inv_app_auditoria_capturar', {
+    const args = {
       p_auditoria_id: cocConteo, p_insumo_id: id, p_peso_g: null,
       p_piezas_cerradas: piezas, p_cantidad_suelta: suelto
-    });
+    };
+    /* PRIMERO en el telefono, despues al servidor. Si se apuntara al reves,
+       un envio que falla no dejaria rastro — que es como estaba. */
+    pendPoner('COCINA', cocConteo, id, args);
     cocHechos[id] = n;          // se guarda el VALOR, no un si/no: contar cero es contar
-    if (marca) marca.textContent = '✓';
-    campo.classList.add('coc-ok');
     cocinaMarcador();
+
+    await rpc('inv_app_auditoria_capturar', args);
+    pendQuitar('COCINA', cocConteo, id);
+    if (marca) marca.textContent = '✓';
+    campo.classList.remove('inp-pend');
+    campo.classList.add('coc-ok');
   } catch (e) {
-    if (marca) marca.textContent = '⚠️';
-    avisar('No se guardó ' + (ins ? ins.nombre : '') + ': ' + e.message, true);
+    /* Ya quedo apuntado arriba, asi que esto no es "no se guardo": es "todavia
+       no sube". La diferencia importa — con la primera version la gente volvia
+       a teclear todo. */
+    if (marca) marca.textContent = '⏳';
+    campo.classList.add('inp-pend');
+    if (e.message !== 'SESION_VENCIDA') {
+      avisar('Falta subir ' + (ins ? ins.nombre : '') + ', pero ya quedó guardado '
+           + 'en este teléfono. Se sube solo.', true);
+    }
   }
+  cocinaMarcador();
 }
 
 function cocinaMarcador() {
@@ -1068,6 +1328,23 @@ function cocinaMarcador() {
 }
 
 async function cocinaCerrar() {
+  /* Un conteo no se puede cerrar con numeros sin subir: el cierre aplica lo
+     que hay en el SERVIDOR, asi que cerrar ahora tiraria lo que quedo en el
+     telefono y ademas ajustaria el inventario con un conteo incompleto. */
+  if (pendCuantos('COCINA', cocConteo)) {
+    verCargando('Subiendo lo que faltaba antes de cerrar...');
+    const r = await pendMandar('COCINA', cocConteo);
+    ocultarCargando();
+    if (r.quedan) {
+      avisar('No se puede cerrar todavía: faltan ' + r.quedan + ' número'
+           + (r.quedan === 1 ? '' : 's') + ' por subir. Están a salvo en este '
+           + 'teléfono. Revisa el internet y vuelve a intentar.', true);
+      pintar();
+      return;
+    }
+    await cocinaArrancar();
+    pintar();
+  }
   const hechos = Object.keys(cocHechos).length;
   const faltan = cocLista.length - hechos;
   const msg = faltan > 0
@@ -1083,6 +1360,7 @@ async function cocinaCerrar() {
       { p_auditoria_id: cocConteo, p_aplicar_ajuste: true });
     try { await rpc('inv_app_auditoria_revisar', { p_auditoria_id: cocConteo }); } catch (e) {}
     const res = await rpc('inv_app_auditoria_resultado', { p_auditoria_id: cocConteo });
+    pendOlvidar('COCINA', cocConteo);   // ya se aplico: la libreta sobra
     cocConteo = null; cocHechos = {};
     await cargarDatos();
     mostrarVarianzaCocina(res || []);
@@ -1138,6 +1416,7 @@ function vistaCocina() {
   let h = `
     <div class="aviso">🍳 Conteo de cocina #${cocConteo} —
       <b id="cocMarcador">${Object.keys(cocHechos).length} de ${cocLista.length}</b> contados</div>
+    ${pendAviso('COCINA', cocConteo)}
     <div class="barra-sup">
       <input class="buscar" placeholder="🔍 Buscar..." oninput="filtrarCocina()" id="buscaCoc">
       ${puedeMover()
@@ -1192,6 +1471,7 @@ function vistaCocina() {
          !== undefined y no por el valor, que con 0 daria falso y el renglon
          se veria como si nadie lo hubiera contado. */
       const hecho = cocHechos[i.insumo_id] !== undefined;
+      const pend  = pendHay('COCINA', cocConteo, i.insumo_id);
       const ayerD = cocAyer[i.insumo_id];
       const ayer = ayerD ? ayerD.v : undefined;
       h += `<div class="coc-fila" data-n="${esc((i.nombre||'').toLowerCase())}">
@@ -1203,7 +1483,7 @@ function vistaCocina() {
             title="Contado el ${esc(cocAyerDia(i.insumo_id))}">${
             ayer === undefined ? '—'
               : ayer.toLocaleString('es-MX', { maximumFractionDigits: 2 })}</div>` : ''}
-          <input class="inp-chico${hecho ? ' coc-ok' : ''}" type="number"
+          <input class="inp-chico${pend ? ' inp-pend' : (hecho ? ' coc-ok' : '')}" type="number"
                  id="cc_${i.insumo_id}" placeholder="0" min="0"
                  step="any"
                  value="${hecho ? cocHechos[i.insumo_id] : ''}"
@@ -1211,7 +1491,8 @@ function vistaCocina() {
                  onchange="cocinaCapturar(${i.insumo_id})"
                  aria-label="Cuánto hay de ${esc(i.nombre)}">
           <span class="coc-u">${esc(v.u)}</span>
-          <span class="coc-ok-m" id="cm_${i.insumo_id}">${hecho ? '✓' : ''}</span>
+          <span class="coc-ok-m" id="cm_${i.insumo_id}">${
+            pendHay('COCINA', cocConteo, i.insumo_id) ? '⏳' : (hecho ? '✓' : '')}</span>
         </div>
       </div>`;
     }
@@ -1235,7 +1516,7 @@ function vistaCocina() {
            <div class="coc-cierre-p">Esto cierra el conteo y deja el inventario
              con lo que acabas de contar. Lo que no se contó se queda igual.</div>`
         : `<button class="btn-pri btn-grande"
-             onclick="avisar('Listo. Avísale a Carla para que lo cierre.')">✅ Terminé</button>
+             onclick="cocinaTermine()">✅ Terminé</button>
            <div class="coc-cierre-p">Cada número ya se guardó solo. Avísale a
              Carla para que lo cierre.</div>`}
     </div>`;
@@ -2161,11 +2442,17 @@ async function barraEmpezar() {
 /* Se guarda renglón por renglón, al salir del campo. Igual que en cocina:
    si se cae la señal a media barra, lo ya capturado está a salvo. */
 async function barraCapturar(id) {
-  if (!barConteo) return;
   const cs = document.getElementById('bs_' + id);
   const cc = document.getElementById('bc_' + id);
   const marca = document.getElementById('bm_' + id);
   if (!cs) return;
+  /* Lo mismo que en cocina: esto era un "return" callado. */
+  if (!barConteo) {
+    if (marca) marca.textContent = '⚠️';
+    avisar('No hay un conteo abierto, así que esto no se está guardando. '
+         + 'Vuelve a entrar a Barra y aprieta "Empezar el conteo".', true);
+    return;
+  }
 
   const leer = (el) => {
     if (!el) return null;
@@ -2192,6 +2479,16 @@ async function barraCapturar(id) {
     return;
   }
 
+  /* El tope. Aqui es donde se atajan los kilos tecleados como gramos, que es
+     el error que lleva tres noches dando de baja licor que si estaba. */
+  const malo = topeBarra(id, stock, copeo);
+  if (malo) {
+    if (marca) marca.textContent = '⚠️';
+    cs.classList.remove('coc-ok'); if (cc) cc.classList.remove('coc-ok');
+    avisar(malo, true);
+    return;
+  }
+
   if (marca) marca.textContent = '…';
   try {
     /* LA BOTELLA QUE SE PESA MANDA GRAMOS, NO MILILITROS. La base convierte
@@ -2200,15 +2497,22 @@ async function barraCapturar(id) {
        medido: el dia que se corrija un peso o una densidad, lo viejo quedaria
        mal para siempre y nadie sabria por que. */
     const pesa = barSePesa(id);
-    await rpc('inv_app_auditoria_capturar', {
+    const args = {
       p_auditoria_id: barConteo, p_insumo_id: id,
       p_piezas_cerradas: Math.round(stock || 0),
       p_peso_g:          pesa ? copeo : null,
       p_cantidad_suelta: pesa ? null  : copeo
-    });
+    };
+    /* PRIMERO en el telefono, despues al servidor. */
+    pendPoner('BARRA', barConteo, id, args);
     barHechos[id] = { stock: stock === null ? '' : stock,
                       copeo: copeo === null ? '' : copeo };
+    barraMarcador();
+
+    await rpc('inv_app_auditoria_capturar', args);
+    pendQuitar('BARRA', barConteo, id);
     if (marca) marca.textContent = '✓';
+    cs.classList.remove('inp-pend'); if (cc) cc.classList.remove('inp-pend');
     cs.classList.add('coc-ok'); if (cc && copeo !== null) cc.classList.add('coc-ok');
     /* El eco: "760 g = 440 ml". Sirve de verificacion en el momento — si sale
        un numero absurdo, el peso de esa botella esta mal y se ve enseguida,
@@ -2220,10 +2524,16 @@ async function barraCapturar(id) {
     }
     barraMarcador();
   } catch (e) {
-    if (marca) marca.textContent = '⚠️';
+    /* Ya quedo apuntado: "todavia no sube", no "no se guardo". */
+    if (marca) marca.textContent = '⏳';
+    cs.classList.add('inp-pend'); if (cc) cc.classList.add('inp-pend');
     const ins = barLista.find(x => x.insumo_id === id);
-    avisar('No se guardó ' + (ins ? ins.nombre : '') + ': ' + e.message, true);
+    if (e.message !== 'SESION_VENCIDA') {
+      avisar('Falta subir ' + (ins ? ins.nombre : '') + ', pero ya quedó guardado '
+           + 'en este teléfono. Se sube solo.', true);
+    }
   }
+  barraMarcador();
 }
 
 function barraMarcador() {
@@ -2253,6 +2563,23 @@ function zonasDeBarra() {
 }
 
 async function barraCerrar() {
+  /* Un conteo no se puede cerrar con numeros sin subir: el cierre aplica lo
+     que hay en el SERVIDOR, asi que cerrar ahora tiraria lo que quedo en el
+     telefono y ademas ajustaria el inventario con un conteo incompleto. */
+  if (pendCuantos('BARRA', barConteo)) {
+    verCargando('Subiendo lo que faltaba antes de cerrar...');
+    const r = await pendMandar('BARRA', barConteo);
+    ocultarCargando();
+    if (r.quedan) {
+      avisar('No se puede cerrar todavía: faltan ' + r.quedan + ' número'
+           + (r.quedan === 1 ? '' : 's') + ' por subir. Están a salvo en este '
+           + 'teléfono. Revisa el internet y vuelve a intentar.', true);
+      pintar();
+      return;
+    }
+    await barraArrancar();
+    pintar();
+  }
   const hechos = Object.keys(barHechos).length;
   const faltan = barLista.length - hechos;
   const msg = faltan > 0
@@ -2268,6 +2595,7 @@ async function barraCerrar() {
       { p_auditoria_id: barConteo, p_aplicar_ajuste: true });
     try { await rpc('inv_app_auditoria_revisar', { p_auditoria_id: barConteo }); } catch (e) {}
     const res = await rpc('inv_app_auditoria_resultado', { p_auditoria_id: barConteo });
+    pendOlvidar('BARRA', barConteo);   // ya se aplico: la libreta sobra
     barConteo = null; barHechos = {};
     await cargarDatos();
     mostrarVarianzaBarra(res || []);
@@ -2328,6 +2656,7 @@ function vistaBarra() {
   let h = `
     <div class="aviso">🍸 Conteo de barra #${barConteo} —
       <b id="barMarcador">${Object.keys(barHechos).length} de ${barLista.length}</b> contados</div>
+    ${pendAviso('BARRA', barConteo)}
     <div class="barra-sup">
       <input class="buscar" placeholder="🔍 Buscar botella..." oninput="filtrarBarra()" id="buscaBar">
       ${puedeMover()
@@ -2378,6 +2707,7 @@ function vistaBarra() {
       const v = barUnidad(i);
       const d = barHechos[i.insumo_id];
       const hecho = d !== undefined;
+      const pendB = pendHay('BARRA', barConteo, i.insumo_id);
       const pesa  = (v.mide === 'ml') && barSePesa(i.insumo_id);
       const ecoIni = (pesa && hecho && d.copeo !== '' && d.copeo !== null)
         ? ' → ' + barMlDePeso(i.insumo_id, d.copeo) + ' ml' : '';
@@ -2397,13 +2727,14 @@ function vistaBarra() {
           <div class="coc-ayer${ay && ay.copeo ? '' : ' vacio'}"
             title="Copeo el ${esc(barAyerDia(i.insumo_id))}">${
             ay && ay.copeo ? ay.copeo : '—'}</div>` : ''}
-        <input class="inp-chico${hecho ? ' coc-ok' : ''}" type="number"
+        <input class="inp-chico${pendB ? ' inp-pend' : (hecho ? ' coc-ok' : '')}" type="number"
                id="bs_${i.insumo_id}" placeholder="0" min="0" step="1"
                value="${hecho ? d.stock : ''}" inputmode="numeric"
                onchange="barraCapturar(${i.insumo_id})"
                aria-label="Botellas cerradas de ${esc(i.nombre)}">
         ${v.mide === 'ml'
-          ? `<input class="inp-chico${hecho && d.copeo !== '' ? ' coc-ok' : ''}" type="number"
+          ? `<input class="inp-chico${pendB ? ' inp-pend'
+                 : (hecho && d.copeo !== '' ? ' coc-ok' : '')}" type="number"
                  id="bc_${i.insumo_id}" placeholder="${pesa ? 'g' : 'ml'}" min="0"
                  ${pesa ? '' : 'max="' + v.cap + '"'} step="any"
                  value="${hecho ? d.copeo : ''}" inputmode="decimal"
@@ -2412,7 +2743,8 @@ function vistaBarra() {
                    ? 'Lo que marca la báscula, en gramos, con la botella abierta de '
                    : 'Mililitros que le quedan a la abierta de '}${esc(i.nombre)}">`
           : `<span class="bar-nd">—</span>`}
-        <span class="coc-ok-m" id="bm_${i.insumo_id}">${hecho ? '✓' : ''}</span>
+        <span class="coc-ok-m" id="bm_${i.insumo_id}">${
+          pendHay('BARRA', barConteo, i.insumo_id) ? '⏳' : (hecho ? '✓' : '')}</span>
       </div>`;
     }
     h += '</div>';
@@ -2432,11 +2764,47 @@ function vistaBarra() {
            <div class="coc-cierre-p">Esto cierra el conteo y deja la barra con lo
              que acabas de contar. Lo que no se contó se queda igual.</div>`
         : `<button class="btn-pri btn-grande"
-             onclick="avisar('Listo. Avísale a Carla para que lo cierre.')">✅ Terminé</button>
-           <div class="coc-cierre-p">Cada número ya se guardó solo. Avísale a
-             Carla para que lo cierre.</div>`}
+             onclick="barraTermine()">✅ Terminé</button>
+           <div class="coc-cierre-p">Antes de avisarle a Carla, este botón
+             revisa que todos los números hayan subido.</div>`}
     </div>`;
   return h;
+}
+
+/* El "Terminé" de quien no cierra conteos (Kevin, Chencho). Antes solo decia
+   "cada numero ya se guardo solo" — y si algo no habia subido, eso era
+   mentira y nadie se enteraba hasta el dia siguiente. Ahora lo comprueba. */
+async function barraTermine() { await termine('BARRA'); }
+async function cocinaTermine() { await termine('COCINA'); }
+
+async function termine(ubic) {
+  const conteo = (ubic === 'BARRA') ? barConteo : cocConteo;
+  const quien  = (ubic === 'BARRA') ? 'la barra' : 'la cocina';
+  if (!conteo) return;
+
+  if (pendCuantos(ubic, conteo)) {
+    verCargando('Revisando que todo haya subido...');
+    const r = await pendMandar(ubic, conteo);
+    ocultarCargando();
+    if (r.quedan) {
+      avisar('Ojo: faltan ' + r.quedan + ' número' + (r.quedan === 1 ? '' : 's')
+           + ' por subir. Están guardados en este teléfono y no se van a perder, '
+           + 'pero necesitas internet. Revisa la señal y vuelve a apretar Terminé.', true);
+      pintar();
+      return;
+    }
+    pintar();
+  }
+
+  const faltan = ((ubic === 'BARRA') ? barLista.length : cocLista.length)
+               - Object.keys((ubic === 'BARRA') ? barHechos : cocHechos).length;
+  if (faltan > 0) {
+    avisar('Todo lo que contaste ya subió ✓. Te faltan ' + faltan + ' de '
+         + quien + ' sin contar — si de verdad ya acabaste, avísale a Carla '
+         + 'para que lo cierre.');
+  } else {
+    avisar('Listo, todo subió ✓. Avísale a Carla para que lo cierre.');
+  }
 }
 
 /* Esconde filas, nunca las redibuja, para no borrar lo que ya se tecleó
