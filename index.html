@@ -424,7 +424,7 @@ letter-spacing:.4px;text-transform:uppercase}
 /* La version que esta corriendo, visible en la pantalla. Se sube a mano en
    cada publicacion. Sirve para contestar en un segundo una pregunta que el
    1 nov costo media hora: "esto que estas viendo, ¿es lo nuevo o lo viejo?" */
-const VERSION_APP = 'v9';
+const VERSION_APP = 'v10';
 
 const SUPA_URL  = 'https://nkpzjnfazuqlbvctyqzg.supabase.co';
 const SUPA_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rcHpqbmZhenVxbGJ2Y3R5cXpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzMDI0MDQsImV4cCI6MjEwMzg3ODQwNH0.qdzwLK7v92SW5OoZN5RxeMxs5UHm87P_ECEB90UnHIQ';
@@ -948,20 +948,32 @@ async function cocCargarAyer() {
     if (!a || !a.hay) return;
     cocAyerInfo = a;
     for (const i of cocLista) {
-      const n = cocDesdeBase(i, (a.valores || {})[String(i.insumo_id)]);
-      if (n !== undefined) cocAyer[i.insumo_id] = n;
+      const d = (a.valores || {})[String(i.insumo_id)];
+      const n = cocDesdeBase(i, d);
+      if (n !== undefined) cocAyer[i.insumo_id] = { v: n, dia: d && d.dia };
     }
   } catch (e) { cocAyerInfo = null; }
 }
 
-/* "ayer", "antier" o la fecha: el conteo no siempre es de ayer. */
+/* Que dice el encabezado de la columna.
+   Ya no siempre es "ayer": la base devuelve, PARA CADA PRODUCTO, la ultima vez
+   que se conto ese producto. Cuando vienen de dias distintos el encabezado
+   tiene que decirlo, o estaria mintiendo. */
 function cocAyerEtiqueta() {
   if (!cocAyerInfo) return 'antes';
+  if (cocAyerInfo.mezclado) return 'última vez';
   const d = Number(cocAyerInfo.dias_atras);
   if (d === 0) return 'hoy';
   if (d === 1) return 'ayer';
   if (d === 2) return 'antier';
   return cocAyerInfo.fecha ? cocAyerInfo.fecha.slice(5) : 'antes';
+}
+
+/* La fecha de ESE renglon, para el globito. Cuando los datos vienen de dias
+   distintos es el unico lugar donde se puede ver de cuando es cada numero. */
+function cocAyerDia(id) {
+  const d = cocAyer[id];
+  return (d && d.dia) ? d.dia : (cocAyerInfo ? cocAyerInfo.fecha : '');
 }
 
 /* UNA SOLA LISTA, LA COMPLETA. Arturo, 1 nov: "esto esta demas, ya tenemos la
@@ -1134,9 +1146,13 @@ function vistaCocina() {
     <div class="caja-info" style="margin-bottom:10px">
       Anota <b>cuánto hay</b> de cada cosa, en la unidad que dice a la derecha.
       Lo que no cuentes no se toca. Cada dato se guarda solo al salir del campo.
-      ${cocAyerInfo ? `<br><br>El recuadro de la izquierda es <b>lo que se contó
-        ${esc(cocAyerEtiqueta())}</b> (${esc(cocAyerInfo.fecha || '')}), solo para
-        verlo. El de la derecha es el de hoy.`
+      ${cocAyerInfo ? (cocAyerInfo.mezclado
+        ? `<br><br>El recuadro de la izquierda es <b>la última vez que se contó
+           cada cosa</b>, y no todo es del mismo día: hubo conteos a medias.
+           Si tocas el recuadro te dice de cuándo es ese número.`
+        : `<br><br>El recuadro de la izquierda es <b>lo que se contó
+           ${esc(cocAyerEtiqueta())}</b> (${esc(cocAyerInfo.fecha || '')}), solo para
+           verlo. El de la derecha es el de hoy.`)
       /* Si no se dice, parece que la columna de ayer esta fallando. No falla:
          es que este es el primer conteo y no hay contra que compararlo. Una
          funcion que se esconde sola sin explicar se ve igual que una rota. */
@@ -1176,14 +1192,15 @@ function vistaCocina() {
          !== undefined y no por el valor, que con 0 daria falso y el renglon
          se veria como si nadie lo hubiera contado. */
       const hecho = cocHechos[i.insumo_id] !== undefined;
-      const ayer = cocAyer[i.insumo_id];
+      const ayerD = cocAyer[i.insumo_id];
+      const ayer = ayerD ? ayerD.v : undefined;
       h += `<div class="coc-fila" data-n="${esc((i.nombre||'').toLowerCase())}">
         <div class="coc-nom">${esc(i.nombre)}
           ${v.porPieza ? `<small>por pieza · se admiten mitades</small>`
                        : (i.presentacion ? `<small>${esc(i.presentacion)}</small>` : '')}</div>
         <div class="coc-cap">
           ${cocAyerInfo ? `<div class="coc-ayer${ayer === undefined ? ' vacio' : ''}"
-            title="Lo que se contó ${esc(cocAyerEtiqueta())}">${
+            title="Contado el ${esc(cocAyerDia(i.insumo_id))}">${
             ayer === undefined ? '—'
               : ayer.toLocaleString('es-MX', { maximumFractionDigits: 2 })}</div>` : ''}
           <input class="inp-chico${hecho ? ' coc-ok' : ''}" type="number"
@@ -2092,20 +2109,32 @@ async function barCargarAyer() {
         stock: (d.pz === null || d.pz === undefined) ? null : Number(d.pz),
         copeo: pesado ? Number(d.pg)
              : ((d.ct === null || d.ct === undefined) ? null : Number(d.ct)),
-        pesado: pesado
+        pesado: pesado,
+        dia: d.dia
       };
     }
   } catch (e) { barAyerInfo = null; }
 }
 
-/* "ayer", "antier" o la fecha: el conteo no siempre es de ayer. */
+/* Que dice el encabezado de la columna.
+   Ya no siempre es "ayer": la base devuelve, PARA CADA PRODUCTO, la ultima vez
+   que se conto ese producto. Cuando vienen de dias distintos el encabezado
+   tiene que decirlo, o estaria mintiendo. */
 function barAyerEtiqueta() {
   if (!barAyerInfo) return 'antes';
+  if (barAyerInfo.mezclado) return 'última vez';
   const d = Number(barAyerInfo.dias_atras);
   if (d === 0) return 'hoy';
   if (d === 1) return 'ayer';
   if (d === 2) return 'antier';
   return barAyerInfo.fecha ? barAyerInfo.fecha.slice(5) : 'antes';
+}
+
+/* La fecha de ESE renglon, para el globito. Cuando los datos vienen de dias
+   distintos es el unico lugar donde se puede ver de cuando es cada numero. */
+function barAyerDia(id) {
+  const d = barAyer[id];
+  return (d && d.dia) ? d.dia : (barAyerInfo ? barAyerInfo.fecha : '');
 }
 
 /* UNA SOLA LISTA, LA COMPLETA, igual que en cocina. Preguntar entre el
@@ -2314,9 +2343,13 @@ function vistaBarra() {
       <br>En las que todavía no tienen su peso capturado dice
       <b>"en ml, sin peso todavía"</b>: ésas sí van a ojo, por ahora.
       Cada dato se guarda solo al salir del campo.
-      ${barAyerInfo ? `<br><br>Los dos recuadros punteados de la izquierda son
-        <b>lo que se contó ${esc(barAyerEtiqueta())}</b>
-        (${esc(barAyerInfo.fecha || '')}), solo para verlos.`
+      ${barAyerInfo ? (barAyerInfo.mezclado
+        ? `<br><br>Los dos recuadros punteados son <b>la última vez que se contó
+           cada botella</b>, y no todo es del mismo día: hubo conteos a medias.
+           Si tocas el recuadro te dice de cuándo es ese número.`
+        : `<br><br>Los dos recuadros punteados de la izquierda son
+           <b>lo que se contó ${esc(barAyerEtiqueta())}</b>
+           (${esc(barAyerInfo.fecha || '')}), solo para verlos.`)
       /* Si no se dice, parece que la columna de ayer esta fallando. No falla:
          es que este es el primer conteo de barra y no hay contra que compararlo. */
       : `<br><br>📅 <b>Éste es el primer conteo de barra</b>, por eso todavía no
@@ -2359,10 +2392,10 @@ function vistaBarra() {
             : (i.presentacion ? `<small>${esc(i.presentacion)}</small>` : '')}</div>
         ${barAyerInfo ? `<div class="coc-ayer${
             ay && ay.stock !== null ? '' : ' vacio'}"
-            title="Cerradas ${esc(barAyerEtiqueta())}">${
+            title="Cerradas el ${esc(barAyerDia(i.insumo_id))}">${
             ay && ay.stock !== null ? ay.stock : '—'}</div>
           <div class="coc-ayer${ay && ay.copeo ? '' : ' vacio'}"
-            title="Copeo ${esc(barAyerEtiqueta())}">${
+            title="Copeo el ${esc(barAyerDia(i.insumo_id))}">${
             ay && ay.copeo ? ay.copeo : '—'}</div>` : ''}
         <input class="inp-chico${hecho ? ' coc-ok' : ''}" type="number"
                id="bs_${i.insumo_id}" placeholder="0" min="0" step="1"
