@@ -279,6 +279,57 @@ letter-spacing:.4px;text-transform:uppercase}
 .rueda{width:36px;height:36px;border:2.5px solid var(--border2);border-top-color:var(--accent);border-radius:50%;animation:giro .8s linear infinite}
 @keyframes giro{to{transform:rotate(360deg)}}
 @keyframes temblor{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+/* ======================================================================
+   LA HOJA PARA IMPRIMIR  (Arturo, 4 nov 2026)
+
+   "Quiere Carla un reporte impreso de eso para checar fisicamente."
+
+   En pantalla no se ve. Al imprimir se esconde TODO lo demas y solo queda
+   ella. Se hace asi, y no abriendo una ventana nueva, porque la app esta
+   instalada en el telefono: Safari bloquea las ventanas nuevas y el boton
+   se quedaria sin hacer nada, sin decir por que.
+   ====================================================================== */
+#hojaImpresion{display:none}
+
+@media print {
+  /* Solo la hoja. Lo demas no existe. */
+  body > *{display:none !important}
+  body > #hojaImpresion{display:block !important}
+  body{background:#fff !important;color:#000 !important;padding:0;margin:0}
+  @page{size:letter;margin:13mm}
+
+  #hojaImpresion{font-family:Helvetica,Arial,sans-serif;color:#000;font-size:9pt}
+  .imp-tit{font-size:14pt;font-weight:700;margin:0}
+  .imp-sub{font-size:8.5pt;color:#333;margin:2mm 0 0}
+  .imp-ayuda{font-size:8pt;color:#555;font-style:italic;margin:1.5mm 0 0;line-height:1.35}
+  .imp-tabla{width:100%;border-collapse:collapse;margin-top:3mm}
+  .imp-tabla th{font-size:8pt;text-align:left;border-bottom:1.1pt solid #000;
+    padding:0 1mm 1mm;text-transform:uppercase;letter-spacing:.3pt}
+  .imp-tabla td{font-size:9pt;padding:1.5mm 1mm;border-bottom:.4pt solid #e6e6e6;
+    vertical-align:bottom}
+  .imp-zona td{background:#ededed;font-weight:700;font-size:9pt;
+    padding:1.4mm 1mm;border-bottom:none}
+  /* Que un grupo no se parta a la mitad si cabe entero. */
+  .imp-zona{page-break-after:avoid;break-after:avoid}
+  .imp-tabla tr{page-break-inside:avoid;break-inside:avoid}
+  .imp-num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  .imp-antes{color:#888}
+  .imp-hoy{font-weight:700}
+  .imp-sin{color:#aaa;font-style:italic;font-size:8pt}
+  /* Lo que no se ha capturado va en gris: ahi el sistema no tiene nada que
+     comparar, y mezclarlo con lo contado haria creer que marca cero. */
+  .imp-gris td{color:#999}
+  .imp-gris .imp-hoy{font-weight:400}
+  .imp-uni{color:#777;font-size:8pt}
+  /* La raya para escribir a mano lo que se encuentre. Va como span y con alto
+     propio: una celda vacia se colapsa y su raya se confunde con la linea del
+     renglon, que no invita a escribir nada encima. */
+  .imp-fis{padding-bottom:.8mm}
+  .imp-raya{display:block;border-bottom:.8pt solid #999;height:5mm}
+  .imp-ojo{color:#c0392b;font-weight:700;font-size:7.5pt;display:block}
+  .imp-pie{margin-top:4mm;font-size:8pt;color:#777;font-style:italic}
+}
+
 .aviso-flot{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);color:#fff;padding:12px 22px;border-radius:var(--r);font-weight:600;z-index:300;font-size:13px;opacity:0;transition:opacity .3s;pointer-events:none;max-width:90vw;text-align:center;box-shadow:0 8px 28px rgba(0,0,0,.5)}
 .aviso-flot.ver{opacity:1}
 .tabla{width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
@@ -428,6 +479,10 @@ letter-spacing:.4px;text-transform:uppercase}
 <div class="cargando" id="cargando"><div class="rueda"></div>
   <div style="color:#888;font-size:13px" id="txtCargando">Cargando...</div></div>
 <div class="aviso-flot" id="avisoFlot"></div>
+<!-- La hoja para imprimir. Vive escondida y solo existe al imprimir: asi no
+     hay que abrir ventana nueva, que en el iPhone instalado como app la
+     bloquea Safari y el boton no haria nada. -->
+<div id="hojaImpresion"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
@@ -437,7 +492,7 @@ letter-spacing:.4px;text-transform:uppercase}
 /* La version que esta corriendo, visible en la pantalla. Se sube a mano en
    cada publicacion. Sirve para contestar en un segundo una pregunta que el
    1 nov costo media hora: "esto que estas viendo, ¿es lo nuevo o lo viejo?" */
-const VERSION_APP = 'v11';
+const VERSION_APP = 'v12';
 
 const SUPA_URL  = 'https://nkpzjnfazuqlbvctyqzg.supabase.co';
 const SUPA_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rcHpqbmZhenVxbGJ2Y3R5cXpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzMDI0MDQsImV4cCI6MjEwMzg3ODQwNH0.qdzwLK7v92SW5OoZN5RxeMxs5UHm87P_ECEB90UnHIQ';
@@ -700,6 +755,219 @@ function topeCocina(id, n) {
     return `${i.nombre}: ${n} ${v.u} no cabe en la cocina. Revisa el número.`;
   }
   return null;
+}
+
+/* ======================================================================
+   IMPRIMIR LA HOJA DEL CONTEO  (Arturo, 4 nov 2026)
+
+   "Ya, cambio de parecer: mejor quiere el boton para hacer el conteo
+    ahorita y poder generarlo para imprimirlo."
+
+   La hoja NO es una copia de la pantalla: es la pantalla mas una columna
+   vacia. Carla va al refrigerador con el papel, cuenta, y escribe al lado
+   lo que de verdad encuentra. Si solo llevara lo que el sistema ya cree,
+   el numero impreso le diria la respuesta antes de contar — que es justo
+   lo que un conteo a ciegas evita.
+
+   Por eso van las tres columnas:
+     ANTES    lo que se conto la vez pasada (contexto, en gris)
+     SISTEMA  lo capturado en este conteo
+     FISICO   vacio, con raya
+   ====================================================================== */
+
+/* Lo que vale la pena MIRAR en la hoja, que no es lo mismo que lo que vale la
+   pena FRENAR en la captura.
+
+   El tope de la captura solo ataja lo imposible, porque frenar a quien cuenta
+   es peor que un dato malo. Pero en el papel avisar no cuesta nada: Carla ya
+   tiene el producto enfrente y es el unico momento en que un numero raro se
+   puede mirar contra la realidad. Por eso aqui la vara es mas baja.
+
+   El champinon marcaba 380 kg: imposible de hecho, pero por debajo del tope de
+   una tonelada, asi que la captura lo dejo pasar dos conteos seguidos. */
+function impRaro(valor, antes, unidad) {
+  if (valor === null || valor === undefined || valor === '') return null;
+  const n = Number(valor);
+  if (!isFinite(n) || n <= 0) return null;
+  /* Mas de 100 kg o 100 L de una sola cosa en una cocina: no existe. */
+  if ((unidad === 'kg' || unidad === 'L') && n > 100) {
+    return 'revisar: son ' + impNum(n) + ' ' + unidad;
+  }
+  /* O diez veces lo de la vez pasada, cuando habia con que comparar. */
+  const a = Number(antes);
+  if (isFinite(a) && a >= 1 && n > a * 10) return 'revisar: antes había ' + impNum(a);
+  return null;
+}
+
+function impNum(n) {
+  if (n === null || n === undefined || n === '') return '';
+  return Number(n).toLocaleString('es-MX', { maximumFractionDigits: 3 });
+}
+
+/* La fecha y hora de ahorita, para que la hoja diga de cuando es. Una hoja
+   de conteo sin hora no sirve: a las dos horas ya no se sabe si es la vieja. */
+/* De cuando es la columna de ANTES, en palabras. El "11-01" que sale de
+   recortar la fecha se lee como 11 de enero en un papel impreso. */
+function impAntesDe(info) {
+  if (!info) return 'la vez pasada';
+  if (info.mezclado) return 'la última vez que se contó cada cosa';
+  const d = Number(info.dias_atras);
+  if (d === 0) return 'hoy';
+  if (d === 1) return 'ayer';
+  if (d === 2) return 'antier';
+  if (info.fecha) {
+    const p = String(info.fecha).split('-');
+    if (p.length === 3) return 'el ' + p[2] + '/' + p[1];
+  }
+  return 'la vez pasada';
+}
+
+function impCuando() {
+  const d = new Date();
+  const dd = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mi = String(d.getMinutes()).padStart(2, '0');
+  return dd + '/' + mm + '/' + d.getFullYear() + ' ' + hh + ':' + mi;
+}
+
+function impArmar(titulo, sub, ayuda, cabeceras, grupos, pie) {
+  let h = '<div class="imp-tit">LOS PARES 84×88 — ' + esc(titulo) + '</div>';
+  h += '<div class="imp-sub">' + sub + '</div>';
+  if (ayuda) h += '<div class="imp-ayuda">' + ayuda + '</div>';
+  h += '<table class="imp-tabla"><thead><tr>' + cabeceras + '</tr></thead><tbody>';
+  for (const g of grupos) {
+    h += '<tr class="imp-zona"><td colspan="' + g.cols + '">' + esc(g.titulo) + '</td></tr>';
+    h += g.filas;
+  }
+  h += '</tbody></table>';
+  h += '<div class="imp-pie">' + esc(pie) + '</div>';
+  return h;
+}
+
+/* Pintar e imprimir. El timeout no es adorno: sin el, algunos navegadores
+   mandan a imprimir antes de terminar de acomodar la tabla y sale la hoja
+   cortada o en blanco. */
+function impMandar(html) {
+  const z = document.getElementById('hojaImpresion');
+  if (!z) return;
+  z.innerHTML = html;
+  setTimeout(function () {
+    window.print();
+  }, 120);
+}
+
+/* ------------------------------- COCINA --------------------------------- */
+function imprimirCocina() {
+  if (!cocConteo) { avisar('Primero abre el conteo.', true); return; }
+
+  let hechos = 0;
+  const grupos = [];
+  for (const clave of zonasDeLaLista()) {
+    const arr = cocLista.filter(i => i.zona === clave);
+    if (!arr.length) continue;
+    let filas = '';
+    for (const i of arr) {
+      const v     = cocUnidad(i);
+      const hoy   = cocHechos[i.insumo_id];
+      const ayerD = cocAyer[i.insumo_id];
+      const ayer  = ayerD ? ayerD.v : undefined;
+      const tiene = hoy !== undefined;
+      if (tiene) hechos++;
+      /* Lo imposible se marca para que lo vea primero quien cuenta: la hoja
+         es el unico momento en que un numero absurdo se mira junto al
+         producto real que tiene enfrente. */
+      const malo = tiene ? (topeCocina(i.insumo_id, hoy)
+                            || impRaro(hoy, ayer, v.u)) : null;
+      filas += '<tr' + (tiene ? '' : ' class="imp-gris"') + '>'
+            +  '<td>' + esc(i.nombre)
+            +  (malo ? '<span class="imp-ojo">⚠ ' + esc(malo) + '</span>' : '')
+            +  '</td>'
+            +  '<td class="imp-uni">' + esc(v.u) + '</td>'
+            +  '<td class="imp-num imp-antes">' + (ayer === undefined ? '—' : impNum(ayer)) + '</td>'
+            +  '<td class="imp-num imp-hoy">'
+            +  (tiene ? impNum(hoy) : '<span class="imp-sin">sin capturar</span>') + '</td>'
+            +  '<td class="imp-fis"><span class="imp-raya"></span></td></tr>';
+    }
+    grupos.push({ titulo: zonaBonita(clave), cols: 5, filas: filas });
+  }
+
+  const sub = 'Conteo #' + cocConteo + ' · impreso el ' + impCuando()
+            + ' · <b>' + hechos + ' de ' + cocLista.length + '</b> capturados';
+  const ayuda = '<b>ANTES</b> = lo que se contó '
+            + esc(impAntesDe(cocAyerInfo))
+            + '. <b>SISTEMA</b> = lo capturado ahorita. '
+            + '<b>FÍSICO</b> = lo que usted encuentre.<br>'
+            + 'Los renglones en gris todavía no se capturan: ahí el sistema no tiene nada.';
+  const cab = '<th>Producto</th><th>Unidad</th>'
+            + '<th class="imp-num">Antes</th><th class="imp-num">Sistema</th>'
+            + '<th style="width:26mm">Físico</th>';
+
+  impMandar(impArmar('Conteo de cocina', sub, ayuda, cab, grupos,
+    'Conteo de cocina · Los Pares 84×88'));
+}
+
+/* -------------------------------- BARRA --------------------------------- */
+function imprimirBarra() {
+  if (!barConteo) { avisar('Primero abre el conteo.', true); return; }
+
+  let hechos = 0;
+  const grupos = [];
+  for (const clave of zonasDeBarra()) {
+    const arr = barLista.filter(i => i.zona === clave);
+    if (!arr.length) continue;
+    let filas = '';
+    for (const i of arr) {
+      const v     = barUnidad(i);
+      const pesa  = barSePesa(i.insumo_id);
+      const d     = barHechos[i.insumo_id];
+      const ay    = barAyer[i.insumo_id];
+      const tiene = d !== undefined;
+      if (tiene) hechos++;
+      /* En barra el copeo se teclea en GRAMOS cuando la botella se pesa. En
+         la hoja tiene que decirlo, o quien cuenta va a escribir mililitros
+         sobre una columna que el sistema leera como peso. */
+      const etq = (v.mide !== 'ml') ? '—' : (pesa ? 'g' : 'ml');
+      const malo = tiene ? (topeBarra(i.insumo_id,
+                     (d.stock === '' ? null : Number(d.stock)),
+                     (d.copeo === '' ? null : Number(d.copeo)))
+                     || impRaro(d.stock, ay && ay.stock, 'pz')) : null;
+      filas += '<tr' + (tiene ? '' : ' class="imp-gris"') + '>'
+            +  '<td>' + esc(i.nombre)
+            +  (malo ? '<span class="imp-ojo">⚠ ' + esc(malo) + '</span>' : '')
+            +  '</td>'
+            +  '<td class="imp-uni">' + esc(etq) + '</td>'
+            +  '<td class="imp-num imp-antes">'
+            +  (ay && ay.stock !== null && ay.stock !== undefined ? impNum(ay.stock) : '—') + '</td>'
+            +  '<td class="imp-num imp-antes">'
+            +  (ay && ay.copeo !== null && ay.copeo !== undefined ? impNum(ay.copeo) : '—') + '</td>'
+            +  '<td class="imp-num imp-hoy">'
+            +  (tiene ? (d.stock === '' ? '—' : impNum(d.stock))
+                      : '<span class="imp-sin">—</span>') + '</td>'
+            +  '<td class="imp-num imp-hoy">'
+            +  (tiene ? (d.copeo === '' ? '—' : impNum(d.copeo))
+                      : '<span class="imp-sin">sin capturar</span>') + '</td>'
+            +  '<td class="imp-fis"><span class="imp-raya"></span></td>'
+            +  '<td class="imp-fis"><span class="imp-raya"></span></td></tr>';
+    }
+    grupos.push({ titulo: zonaBonita(clave), cols: 8, filas: filas });
+  }
+
+  const sub = 'Conteo #' + barConteo + ' · impreso el ' + impCuando()
+            + ' · <b>' + hechos + ' de ' + barLista.length + '</b> capturados';
+  const ayuda = '<b>Stock</b> = botellas cerradas. <b>Copeo</b> = lo que le queda a la '
+            + 'destapada. En las que se pesan, el copeo va en <b>gramos</b> (la columna '
+            + 'de unidad lo dice).<br><b>ANTES</b> = lo que se contó '
+            + esc(impAntesDe(barAyerInfo))
+            + '. <b>SISTEMA</b> = lo capturado ahorita. '
+            + '<b>FÍSICO</b> = lo que usted encuentre.';
+  const cab = '<th>Botella</th><th>Un.</th>'
+            + '<th class="imp-num">Antes<br>stock</th><th class="imp-num">Antes<br>copeo</th>'
+            + '<th class="imp-num">Sist.<br>stock</th><th class="imp-num">Sist.<br>copeo</th>'
+            + '<th style="width:18mm">Fís. stock</th><th style="width:18mm">Fís. copeo</th>';
+
+  impMandar(impArmar('Conteo de barra', sub, ayuda, cab, grupos,
+    'Conteo de barra · Los Pares 84×88'));
 }
 
 /* ======================================================================
@@ -1419,6 +1687,7 @@ function vistaCocina() {
     ${pendAviso('COCINA', cocConteo)}
     <div class="barra-sup">
       <input class="buscar" placeholder="🔍 Buscar..." oninput="filtrarCocina()" id="buscaCoc">
+      <button class="btn-sec" onclick="imprimirCocina()">🖨️ Imprimir</button>
       ${puedeMover()
         ? `<button class="btn-sec" onclick="histIr('COCINA', null)">📅 Historial</button>` : ''}
     </div>
@@ -1509,6 +1778,8 @@ function vistaCocina() {
     <div class="coc-cierre">
       <div class="coc-cierre-n"><b id="cocMarcador2">${
         Object.keys(cocHechos).length} de ${cocLista.length}</b> contados</div>
+      <button class="btn-sec btn-grande" style="margin-bottom:9px"
+        onclick="imprimirCocina()">🖨️ Imprimir esta hoja para revisar</button>
       ${esAdmin()
         ? `<button class="btn-pri btn-grande" id="cocBtnCerrar"
              ${Object.keys(cocHechos).length ? '' : 'disabled'}
@@ -2659,6 +2930,7 @@ function vistaBarra() {
     ${pendAviso('BARRA', barConteo)}
     <div class="barra-sup">
       <input class="buscar" placeholder="🔍 Buscar botella..." oninput="filtrarBarra()" id="buscaBar">
+      <button class="btn-sec" onclick="imprimirBarra()">🖨️ Imprimir</button>
       ${puedeMover()
         ? `<button class="btn-sec" onclick="histIr('BARRA', null)">📅 Historial</button>` : ''}
     </div>
@@ -2757,6 +3029,8 @@ function vistaBarra() {
     <div class="coc-cierre">
       <div class="coc-cierre-n"><b id="barMarcador2">${
         Object.keys(barHechos).length} de ${barLista.length}</b> contados</div>
+      <button class="btn-sec btn-grande" style="margin-bottom:9px"
+        onclick="imprimirBarra()">🖨️ Imprimir esta hoja para revisar</button>
       ${esAdmin()
         ? `<button class="btn-pri btn-grande" id="barBtnCerrar"
              ${Object.keys(barHechos).length ? '' : 'disabled'}
