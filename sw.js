@@ -13,7 +13,7 @@
 // renglon por renglon. Si la senal se cae a medias, lo ya capturado esta a
 // salvo en la base y solo se pierde el renglon que estaba escribiendo.
 
-const CACHE = 'pares-inv-v2';
+const CACHE = 'pares-inv-v3';
 const SHELL = [
   './',
   './index.html',
@@ -56,29 +56,46 @@ self.addEventListener('fetch', (event) => {
 
   // LA PAGINA SIEMPRE FRESCA, SIN DEPENDER DE NADIE.
   //
-  // 1 nov 2026: Arturo publicaba y seguia viendo la version vieja. No era el
-  // service worker ni Cloudflare (arpaco07.github.io NO pasa por Cloudflare,
-  // lo sirve GitHub directo): era el cache HTTP del navegador, que se mete
-  // ANTES que este fetch y le devuelve lo que ya tenia guardado.
+  // 1 nov 2026: Arturo publicaba y seguia viendo la version vieja. Era el
+  // cache HTTP del navegador, que se mete ANTES que este fetch. Se arreglo
+  // pidiendo el HTML con cache:'no-store' y un parametro que cambia cada vez.
   //
-  // Por eso el HTML se pide con cache:'no-store' y un parametro que cambia
-  // cada vez: asi ninguna capa intermedia puede contestar con lo viejo. Son
-  // ~150 KB una vez al abrir; a cambio, nadie vuelve a trabajar con una
-  // version de ayer sin enterarse, que es mucho mas caro.
+  // 4 nov 2026, EL MISMO SINTOMA POR OTRA CAUSA, y esta la provoque yo:
   //
-  // El resto (iconos, manifest) si se deja cachear normal: no cambian.
+  // El 2 de noviembre el inventario tomo dominio propio
+  // (inventario.lospares.com) y GitHub empezo a REDIRIGIR todo lo que llega a
+  // arpaco07.github.io/Inventario1/ hacia ese dominio nuevo. Pero aqui el
+  // pedido se armaba a mano con url.pathname, o sea "/Inventario1/?v=...",
+  // contra el origen viejo. Esa peticion ahora termina en OTRO dominio, el
+  // navegador la bloquea por CORS, el fetch truena, y se cae al catch de
+  // abajo... que sirve el cache. Para siempre.
+  //
+  // Resultado: todos los telefonos que ya tenian la app instalada quedaron
+  // congelados en la ultima version guardada antes del dominio -- la v9 --
+  // y no habia forma de sacarlos de ahi publicando, porque ya ni siquiera
+  // llegaban a la red. Tres publicaciones seguidas no le llegaron a nadie.
+  //
+  // El arreglo: se pide el REQUEST ORIGINAL, no una URL rearmada. Asi el
+  // navegador sigue la redireccion el solo, como lo hace con cualquier
+  // navegacion normal, y el cache vuelve a ser lo que debe ser: el respaldo
+  // de cuando no hay senal, no la fuente.
   const esPagina = (req.mode === 'navigate')
                 || /\.html($|\?)/.test(url.pathname)
                 || url.pathname === '/' || url.pathname.endsWith('/');
 
   const pedir = esPagina
-    ? fetch(url.pathname + '?v=' + Date.now(), { cache: 'no-store' })
+    ? fetch(req, { cache: 'no-store' })
     : fetch(req);
 
   event.respondWith(
     pedir
       .then((res) => {
-        if (!res || !res.ok) throw new Error('respuesta no utilizable');
+        // Una redireccion es una respuesta buena: el navegador ya la siguio y
+        // esto es el destino. Lo que no sirve es un 404 o un 500.
+        if (!res || (!res.ok && res.type !== 'opaqueredirect')) {
+          throw new Error('respuesta no utilizable');
+        }
+        if (res.type === 'opaqueredirect' || res.redirected) return res;
         const copia = res.clone();
         // Se guarda bajo la peticion ORIGINAL, sin el parametro: si no, el
         // respaldo sin internet nunca se encontraria.
