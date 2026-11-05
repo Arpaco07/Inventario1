@@ -492,7 +492,7 @@ letter-spacing:.4px;text-transform:uppercase}
 /* La version que esta corriendo, visible en la pantalla. Se sube a mano en
    cada publicacion. Sirve para contestar en un segundo una pregunta que el
    1 nov costo media hora: "esto que estas viendo, ¿es lo nuevo o lo viejo?" */
-const VERSION_APP = 'v12';
+const VERSION_APP = 'v13';
 
 const SUPA_URL  = 'https://nkpzjnfazuqlbvctyqzg.supabase.co';
 const SUPA_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rcHpqbmZhenVxbGJ2Y3R5cXpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzMDI0MDQsImV4cCI6MjEwMzg3ODQwNH0.qdzwLK7v92SW5OoZN5RxeMxs5UHm87P_ECEB90UnHIQ';
@@ -3725,6 +3725,77 @@ if ('serviceWorker' in navigator) {
     catch (e) { /* sin instalable, pero la app corre */ }
   });
 }
+
+/* ======================================================================
+   QUE LA APP SE DESATORE SOLA  (Arturo, 4 nov 2026)
+
+   "¿No hay algo que el mismo codigo lo actualice?"
+
+   El 4 de noviembre todos los telefonos se quedaron clavados en la v9 y
+   hubo que borrarles el cache a mano, uno por uno. La causa de fondo no
+   fue el cache: fue que la app no tenia forma de ENTERARSE de que estaba
+   vieja. Mientras la pantalla se vea igual, nadie sospecha nada, y se
+   trabaja un dia entero sobre una version de hace tres.
+
+   Esto lo arregla: al abrir, la app pregunta por un archivito de 3 letras
+   —version.txt— pidiendolo sin cache. Si lo que dice no es lo que la app
+   trae puesto, entonces lo que se esta viendo es viejo: se tiran los
+   caches, se da de baja el service worker y se recarga. Una sola vez.
+
+   Tres cuidados, porque un auto-recargador mal hecho es peor que el
+   problema:
+
+   1) SOLO UNA VEZ POR SESION. Si tras recargar sigue sin coincidir, no se
+      vuelve a intentar: se avisa y ya. Si no, seria un ciclo infinito de
+      recargas y la app quedaria inservible.
+   2) SI NO HAY RED, NO PASA NADA. El fetch falla y se sigue como si nada.
+      Quedarse sin senal no puede costar el conteo.
+   3) NUNCA A MEDIO CONTEO. Si hay algo tecleado sin subir, se posterga:
+      recargar ahi seria exactamente el "se borro todo" que acabamos de
+      arreglar.
+   ====================================================================== */
+async function revisarSiEstoyViejo() {
+  try {
+    const r = await fetch('./version.txt?t=' + Date.now(), { cache: 'no-store' });
+    if (!r.ok) return;
+    const alla = (await r.text()).trim();
+    if (!alla || alla === VERSION_APP) return;
+
+    /* Lo tecleado manda. Si falta subir algo, no se toca nada. */
+    if (typeof pendTotal === 'function' && pendTotal() > 0) {
+      avisar('Hay una version nueva (' + alla + '), pero primero termina de '
+           + 'subir lo que tienes pendiente. Luego cierra y abre la app.', true);
+      return;
+    }
+
+    if (sessionStorage.getItem('inv_ya_recargue') === alla) {
+      /* Ya se intento y no sirvio: decirlo en vez de seguir recargando. */
+      avisar('Esta app quedo en la version ' + VERSION_APP + ' y ya hay una '
+           + alla + '. Hay que borrar los datos del sitio en el navegador.', true);
+      return;
+    }
+    sessionStorage.setItem('inv_ya_recargue', alla);
+
+    /* La limpieza va en su propio try: si el navegador no deja tocar los
+       caches, la recarga TIENE que ocurrir de todos modos. Al reves, un
+       permiso negado dejaba la app vieja para siempre y en silencio, que es
+       justo lo que se esta arreglando. */
+    try {
+      if ('caches' in window) {
+        const llaves = await caches.keys();
+        await Promise.all(llaves.map((k) => caches.delete(k)));
+      }
+      if ('serviceWorker' in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(regs.map((g) => g.unregister()));
+      }
+    } catch (e) { /* se recarga igual: sin cache limpio, pero mas nueva */ }
+
+    location.reload();
+  } catch (e) { /* sin red: la app sigue igual, que es lo correcto */ }
+}
+
+window.addEventListener('load', () => { setTimeout(revisarSiEstoyViejo, 1500); });
 </script>
 </body>
 </html>
