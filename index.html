@@ -136,6 +136,7 @@ main{padding:14px;max-width:1000px;margin:0 auto}
 .b-ent{background:rgba(var(--green-sv),.1);color:var(--green);border-color:rgba(var(--green-sv),.3)}
 .b-tras{background:rgba(var(--blue-sv),.1);color:var(--blue);border-color:rgba(var(--blue-sv),.3)}
 .b-abrir{background:rgba(var(--accent-sv),.1);color:var(--accent);border-color:rgba(var(--accent-sv),.3)}
+.b-corr{color:var(--accent);border-color:rgba(224,163,0,.35)}
 .b-merma{background:rgba(var(--red-sv),.1);color:var(--red);border-color:rgba(var(--red-sv),.3)}
 .b-edit{background:none;color:#bbb;border-color:var(--border2)}
 .b-baja{background:rgba(var(--red-sv),.1);color:var(--red);border-color:rgba(var(--red-sv),.3)}
@@ -540,7 +541,7 @@ letter-spacing:.4px;text-transform:uppercase}
 /* La version que esta corriendo, visible en la pantalla. Se sube a mano en
    cada publicacion. Sirve para contestar en un segundo una pregunta que el
    1 nov costo media hora: "esto que estas viendo, ¿es lo nuevo o lo viejo?" */
-const VERSION_APP = 'v23';
+const VERSION_APP = 'v24';
 
 const SUPA_URL  = 'https://nkpzjnfazuqlbvctyqzg.supabase.co';
 const SUPA_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rcHpqbmZhenVxbGJ2Y3R5cXpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzMDI0MDQsImV4cCI6MjEwMzg3ODQwNH0.qdzwLK7v92SW5OoZN5RxeMxs5UHm87P_ECEB90UnHIQ';
@@ -1397,6 +1398,7 @@ function tarjetaExistencia(e) {
       <button class="btn-min b-tras"  onclick="abrirTraspaso(${e.insumo_id},'${e.ubicacion}')">↗ Salida</button>
       <button class="btn-min b-abrir" onclick="abrirBotella(${e.insumo_id},'${e.ubicacion}')">🍾 Abrir</button>
       <button class="btn-min b-merma" onclick="abrirMerma(${e.insumo_id},'${e.ubicacion}')">🗑 Merma</button>
+      <button class="btn-min b-corr"  onclick="abrirCorregir(${e.insumo_id},'${e.ubicacion}')">✏️ Corregir</button>
     </div>` : `<div class="acciones">
       <button class="btn-min b-merma" onclick="abrirMerma(${e.insumo_id},'${e.ubicacion}')">🗑 Reportar merma</button>
     </div>`}
@@ -3694,6 +3696,56 @@ function abrirBotella(id, ubi) {
     });
 }
 
+/* CORREGIR UN NUMERO MAL CAPTURADO.
+   (Carla, 8 nov 2026: "si da de alta un producto en existencia y se equivoca,
+   ¿como lo modifica?")
+
+   No habia como, y por eso uso MERMA para quitar lo que sobraba. La merma
+   dice "esto se tiro": deja escrito un desperdicio que nunca ocurrio y ensucia
+   el costo para siempre. En toda la historia del sistema la merma se habia
+   usado 2 veces, las dos ese dia, las dos para corregir.
+
+   Aqui se escribe lo que DE VERDAD hay, no lo que sobra o falta: es mas facil
+   de pensar y no hay que hacer restas de cabeza. El motivo es obligatorio y
+   siempre queda un movimiento de tipo CORRECCION con quien y cuando. */
+function abrirCorregir(id, ubi) {
+  const e  = buscaExi(id, ubi);
+  const ub = (UBIS.find(u => u.clave === ubi) || {}).nombre || ubi;
+  const pz = Number(e.piezas_cerradas) || 0;
+  const ab = Number(e.abierto_base) || 0;
+  const esLiquido = e.unidad_base === 'ML';
+
+  modalAccion('✏️ Corregir el número',
+    cabecera(e) +
+    `<div class="caja-info" style="font-size:12px">
+       Escribe <b>lo que de verdad hay</b> en ${esc(ub)}, no lo que sobra o falta.
+       Hoy el sistema trae <b>${pz}</b> ${palabraEnteros(e.unidad_base || 'PZA', pz)}${
+         ab > 0 ? ' y <b>' + num(ab) + '</b> ' + palabraSueltos(e.unidad_base) : ''}.
+     </div>
+     <label class="lbl">${esLiquido ? 'Botellas cerradas' : 'Piezas enteras'}</label>
+     <input class="inp" type="number" id="aPz" min="0" step="1" value="${pz}">
+     <label class="lbl">${esLiquido ? 'Lo destapado (ml)' : 'Cantidad suelta'}</label>
+     <input class="inp" type="number" id="aCant" min="0" step="0.001" value="${ab || ''}" placeholder="0">
+     <label class="lbl">¿Por qué se corrige? * (obligatorio)</label>
+     <input class="inp" id="aMot" placeholder="Me equivoqué al capturar la entrada">`,
+    'Corregir', async () => {
+      const mot = document.getElementById('aMot').value.trim();
+      if (!mot) return avisar('Di por qué se corrige. Mañana nadie se va a acordar.', true);
+      const npz = Number(document.getElementById('aPz').value || 0);
+      const nct = Number(document.getElementById('aCant').value || 0);
+      if (npz < 0 || nct < 0) return avisar('No puede quedar en negativo.', true);
+      verCargando('Corrigiendo...');
+      try {
+        const r = await rpc('inv_app_corregir_existencia', {
+          p_insumo_id: id, p_ubicacion: ubi,
+          p_piezas: Math.round(npz), p_suelto: nct, p_motivo: mot });
+        cerrar('mAccion'); await cargarDatos(); pintar();
+        avisar(r || 'Corregido ✓');
+      } catch (er) { avisar(er.message, true); }
+      ocultarCargando();
+    });
+}
+
 function abrirMerma(id, ubi) {
   const e = buscaExi(id, ubi);
   modalAccion('🗑 Merma o cortesía',
@@ -3708,7 +3760,14 @@ function abrirMerma(id, ubi) {
      <label class="lbl">O ${e.unidad_base === 'ML' ? 'botellas completas' : 'piezas completas'}</label>
      <input class="inp" type="number" id="aPz" placeholder="0" min="0">
      <label class="lbl">Motivo * (obligatorio)</label>
-     <input class="inp" id="aMot" placeholder="Se rompió al servir">`,
+     <input class="inp" id="aMot" placeholder="Se rompió al servir">
+     <div class="caja-info" style="font-size:12px">
+       ⚠️ La merma es para lo que <b>de verdad se perdió</b>: se rompió, se
+       derramó, se caducó. <b>Si lo que pasa es que el número está mal</b>,
+       no es merma — <a href="#" onclick="cerrar('mAccion');abrirCorregir(${id},'${ubi}');return false"
+       style="color:var(--accent)">usa Corregir</a>, o quedará escrito que se
+       tiró algo que nunca se tiró.
+     </div>`,
     'Registrar', async () => {
       const mot = document.getElementById('aMot').value.trim();
       if (!mot) return avisar('El motivo es obligatorio', true);
