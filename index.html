@@ -492,7 +492,7 @@ letter-spacing:.4px;text-transform:uppercase}
 /* La version que esta corriendo, visible en la pantalla. Se sube a mano en
    cada publicacion. Sirve para contestar en un segundo una pregunta que el
    1 nov costo media hora: "esto que estas viendo, ¿es lo nuevo o lo viejo?" */
-const VERSION_APP = 'v14';
+const VERSION_APP = 'v15';
 
 const SUPA_URL  = 'https://nkpzjnfazuqlbvctyqzg.supabase.co';
 const SUPA_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rcHpqbmZhenVxbGJ2Y3R5cXpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzMDI0MDQsImV4cCI6MjEwMzg3ODQwNH0.qdzwLK7v92SW5OoZN5RxeMxs5UHm87P_ECEB90UnHIQ';
@@ -747,11 +747,35 @@ function topeCocina(id, n) {
   const i = cocLista.find(x => x.insumo_id === id);
   if (!i) return null;
   const v = cocUnidad(i);
-  /* Un restaurante no guarda mas de una tonelada ni mil litros de nada. Lo
-     de abajo no es una opinion sobre cuanto deberia haber: es el punto en que
-     el numero dejo de ser una cantidad y es un error de dedo. */
-  const limite = (v.u === 'kg' || v.u === 'lt') ? 1000 : 9999;
+
+  /* El tope se calibro con los conteos REALES de octubre y noviembre, no a
+     ojo: el renglon mas grande que ha existido en la cocina son 8 kg (manzana
+     golden). Nada legitimo pasa de ahi, asi que 100 deja doce veces de aire y
+     aun ataja lo que no es una cantidad sino un error de dedo.
+
+     Dos razones para bajarlo de 1,000 a 100, las dos caras:
+       - El champinon marco 380 kg CUATRO conteos seguidos.
+       - La falda de res marco 810 kg el 4 nov.
+     Juntos habrian inflado el inventario $204,549 al cerrar el conteo. El
+     tope viejo los dejo pasar porque los dos caben debajo de la tonelada.
+
+     Y habia un segundo hueco, mas callado: esto comparaba contra 'lt', pero
+     cocUnidad() devuelve 'L'. O sea que los liquidos nunca tuvieron tope —
+     se quedaban con el 9999 de las piezas. */
+  const esPeso = (v.u === 'kg' || v.u === 'L');
+  const limite = esPeso ? 100 : 9999;
+
   if (n > limite) {
+    /* No basta con frenar: hay que ofrecer el numero que se quiso escribir,
+       porque quien teclea 380 queria 380 gramos y el campo pide kilos. Si se
+       le deja pensarlo, lo vuelve a escribir igual — y eso fue justo lo que
+       paso cuatro veces con el champinon. */
+    if (esPeso) {
+      const chico = (n / 1000).toLocaleString('es-MX', { maximumFractionDigits: 3 });
+      return `${i.nombre}: ${n} ${v.u} no cabe en la cocina. `
+           + `¿Son ${v.u === 'kg' ? 'gramos' : 'mililitros'}? Entonces va `
+           + `<b>${chico}</b>, en ${v.u}.`;
+    }
     return `${i.nombre}: ${n} ${v.u} no cabe en la cocina. Revisa el número.`;
   }
   return null;
