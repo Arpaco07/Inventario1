@@ -518,7 +518,7 @@ letter-spacing:.4px;text-transform:uppercase}
 /* La version que esta corriendo, visible en la pantalla. Se sube a mano en
    cada publicacion. Sirve para contestar en un segundo una pregunta que el
    1 nov costo media hora: "esto que estas viendo, ¿es lo nuevo o lo viejo?" */
-const VERSION_APP = 'v20';
+const VERSION_APP = 'v21';
 
 const SUPA_URL  = 'https://nkpzjnfazuqlbvctyqzg.supabase.co';
 const SUPA_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rcHpqbmZhenVxbGJ2Y3R5cXpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzMDI0MDQsImV4cCI6MjEwMzg3ODQwNH0.qdzwLK7v92SW5OoZN5RxeMxs5UHm87P_ECEB90UnHIQ';
@@ -3030,8 +3030,8 @@ function vistaBarra() {
         <div class="coc-nom">${esc(i.nombre)}
           ${v.mide === 'ml'
             ? `<small${verMio ? ' class="una-linea"' : ''}>${verMio ? '' : 'botella de ' + v.cap + ' ml · '}${pesa
-                 ? (verMio ? '<b>se pesa</b>' : 'la abierta <b>se pesa</b>')
-                 : (verMio ? '<b>en ml</b>' : 'la abierta <b>en ml</b>, sin peso todavía')}<span
+                 ? (verMio ? '⚖️' : 'la abierta: teclea los <b>gramos</b>')
+                 : (verMio ? '<b>ml</b> a ojo'  : 'la abierta: <b>ml</b> a ojo')}<span
                  class="bar-eco" id="be_${i.insumo_id}">${ecoIni}</span></small>`
             : (i.presentacion ? `<small>${esc(i.presentacion)}</small>` : '')}</div>
         ${verMio ? barCajaMio(i.insumo_id) : ''}
