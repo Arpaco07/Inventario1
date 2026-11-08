@@ -175,6 +175,9 @@ main{padding:14px;max-width:1000px;margin:0 auto}
 .coc-cab{display:flex;justify-content:flex-end;gap:6px;align-items:center;
   padding:0 13px 5px;font-size:10px;color:var(--dim);letter-spacing:.4px;
   text-transform:uppercase}
+/* El recuadro de quien rectifica, en cocina. Aqui la fila es flex, no rejilla,
+   asi que basta con meterlo y agregarle su rotulo al encabezado. */
+.coc-cab.con-mio span:first-child{width:40px;text-align:center}
 .coc-cab span:first-child{width:62px;text-align:center}
 .coc-cab span:nth-child(2){width:72px;text-align:center}
 .coc-cab span:last-child{width:46px}
@@ -256,6 +259,17 @@ font-variant-numeric:tabular-nums;padding:8px 4px}
   background:rgba(224,163,0,.07)}
 .coc-mio.vacio{color:var(--dim);border-color:var(--bd);background:none;font-weight:400}
 .coc-mio.llego{box-shadow:0 0 0 2px rgba(224,163,0,.25)}
+.coc-cap .coc-mio{width:40px;flex:0 0 40px}
+/* El reparto: donde esta ese producto, en la misma tarjeta.
+   (Arturo, 8 nov: "seria mas estetico ponerlo en la misma tarjeta... Bodega 4
+   barra 2 piso 1".) Antes habia que ir cambiando de chip, ubicacion por
+   ubicacion, para enterarse de como estaba repartido. */
+.reparto{display:flex;flex-wrap:wrap;gap:5px;margin:8px 0 2px}
+.rep{font-size:11px;padding:3px 8px;border-radius:999px;border:1px solid var(--bd);
+  color:var(--muted);background:var(--bg2);white-space:nowrap}
+.rep b{color:var(--txt);margin-left:3px;font-variant-numeric:tabular-nums}
+.rep.aqui{border-color:var(--accent);color:var(--accent);background:rgba(224,163,0,.08)}
+.rep.aqui b{color:var(--accent)}
 .bar-cab2{display:grid;grid-template-columns:1fr 103px 103px 14px;gap:5px;
   padding:0 11px 2px;font-size:10px;color:var(--accent);text-align:center;
   letter-spacing:.5px;text-transform:uppercase}
@@ -518,7 +532,7 @@ letter-spacing:.4px;text-transform:uppercase}
 /* La version que esta corriendo, visible en la pantalla. Se sube a mano en
    cada publicacion. Sirve para contestar en un segundo una pregunta que el
    1 nov costo media hora: "esto que estas viendo, ¿es lo nuevo o lo viejo?" */
-const VERSION_APP = 'v21';
+const VERSION_APP = 'v22';
 
 const SUPA_URL  = 'https://nkpzjnfazuqlbvctyqzg.supabase.co';
 const SUPA_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rcHpqbmZhenVxbGJ2Y3R5cXpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzMDI0MDQsImV4cCI6MjEwMzg3ODQwNH0.qdzwLK7v92SW5OoZN5RxeMxs5UHm87P_ECEB90UnHIQ';
@@ -1304,6 +1318,47 @@ function listaExistencias() {
   return `<div class="rejilla">${f.map(tarjetaExistencia).join('')}</div>`;
 }
 
+/* DONDE ESTA REPARTIDO ESE PRODUCTO, en su propia tarjeta.
+   (Arturo, 8 nov 2026: "antes, ¿a donde se iban?, ¿donde podia ver en piso hay
+   2, bodega 4?... seria mas estetico ponerlo en la misma tarjeta con el
+   traspaso tambien: Bodega 4 barra 2 piso 1".)
+
+   Hasta ahora cada tarjeta mostraba UNA sola ubicacion, asi que para saber
+   como estaba repartido un producto habia que ir cambiando de chip, lugar por
+   lugar, y acordarse de los numeros. Por eso un traspaso parecia perderse:
+   la botella salia de la tarjeta que estabas viendo y aparecia en otra que no
+   estabas viendo.
+
+   El lugar de la tarjeta en la que estas va resaltado, para no confundirse. */
+function repartoDelInsumo(e) {
+  const filas = existencias.filter(x => x.insumo_id === e.insumo_id
+                                     && Number(x.total_base) !== 0);
+  if (filas.length < 2) return '';   // en un solo lugar no hay nada que repartir
+  const orden = c => { const i = UBIS.findIndex(u => u.clave === c); return i < 0 ? 99 : i; };
+  filas.sort((a, b) => orden(a.ubicacion) - orden(b.ubicacion));
+
+  return '<div class="reparto">' + filas.map(x => {
+    const u  = UBIS.find(z => z.clave === x.ubicacion) || {};
+    const pz = Number(x.piezas_cerradas) || 0;
+    const ab = Number(x.abierto_base) || 0;
+    /* Lo que se ve es el numero que la gente cuenta: las enteras. Si ademas hay
+       una destapada se marca con un "+", para no mentir por omision. */
+    /* Gramos y mililitros crudos quedan feos junto a un "2": 5450 se lee peor
+       que 5.45 kg. Las piezas van tal cual. */
+    const suelto = (x.unidad_base === 'G')  ? gBonito(x.total_base)
+                 : (x.unidad_base === 'ML') ? (Math.abs(Number(x.total_base)) >= 1000
+                      ? (Number(x.total_base) / 1000).toFixed(2).replace(/\.?0+$/, '') + ' L'
+                      : Math.round(Number(x.total_base)) + ' ml')
+                 : num(x.total_base);
+    const n  = pz > 0 ? (pz + (ab > 0 ? '+' : '')) : suelto;
+    const detalle = pz + ' ' + palabraEnteros(x.unidad_base, pz)
+                  + (ab > 0 ? ' y ' + num(ab) + ' ' + palabraSueltos(x.unidad_base) : '');
+    return '<span class="rep' + (x.ubicacion === e.ubicacion ? ' aqui' : '')
+         + '" title="' + esc((u.nombre || x.ubicacion) + ': ' + detalle) + '">'
+         + (u.icono || '') + ' ' + esc(u.nombre || x.ubicacion) + ' <b>' + n + '</b></span>';
+  }).join('') + '</div>';
+}
+
 function tarjetaExistencia(e) {
   const etq = e.estado === 'SIN_STOCK' ? '<span class="etq etq-cero">Sin stock</span>'
             : e.estado === 'BAJO'      ? '<span class="etq etq-bajo">Bajo</span>'
@@ -1328,6 +1383,7 @@ function tarjetaExistencia(e) {
       ${Number(e.minimo) > 0 ? `<span>· mín ${num(e.minimo)}</span>` : ''}
       ${e.valor_pesos != null ? `<span style="margin-left:auto;color:var(--green)">$${num(e.valor_pesos)}</span>` : ''}
     </div>
+    ${repartoDelInsumo(e)}
     ${puedeMover() ? `<div class="acciones">
       <button class="btn-min b-ent"   onclick="abrirEntrada(${e.insumo_id},'${e.ubicacion}')">➕ Entrada</button>
       <button class="btn-min b-tras"  onclick="abrirTraspaso(${e.insumo_id},'${e.ubicacion}')">↗ Salida</button>
@@ -1449,6 +1505,7 @@ async function cocinaArrancar() {
   cocHechos = {};
   cocLista = await rpc('inv_app_lista_conteo',
     { p_ubicacion: 'COCINA', p_modo: cocModo }) || [];
+  cocLlegadas = await traerLlegadas('COCINA');
 
   /* La conversion va DESPUES de cargar la lista, no antes: solo ahi se sabe si
      cada renglon se cuenta por pieza o por peso, y en que unidad se le pidio.
@@ -1537,6 +1594,7 @@ async function cocinaEmpezar() {
     cocHechos = {};
     cocLista = await rpc('inv_app_lista_conteo',
       { p_ubicacion: 'COCINA', p_modo: cocModo }) || [];
+    cocLlegadas = await traerLlegadas('COCINA');
     await cocCargarAyer();
     pintar();
   } catch (e) { avisar(e.message, true); }
@@ -1711,6 +1769,9 @@ function mostrarVarianzaCocina(res) {
 }
 
 function vistaCocina() {
+  /* El recuadro de quien rectifica, igual que en barra: por ADMIN, no por
+     "puede traspasar". Chencho (rol Cocina) no lo ve y sigue contando a ciegas. */
+  const verMio = esAdmin();
   if (cocVista === 'historial') return vistaHistorial();
   if (!cocConteo) {
     return `
@@ -1769,7 +1830,7 @@ function vistaCocina() {
             <span class="pastilla" id="cz_${claveId(clave)}">${hechos}/${arr.length}</span>
           </div>`;
     if (cocAyerInfo) {
-      h += `<div class="coc-cab"><span>${esc(cocAyerEtiqueta())}</span><span>hoy</span><span></span></div>`;
+      h += `<div class="coc-cab${verMio ? ' con-mio' : ''}">${verMio ? '<span>mío</span>' : ''}<span>${esc(cocAyerEtiqueta())}</span><span>hoy</span><span></span></div>`;
     }
     h += '<div class="coc-lista">';
     for (const i of arr) {
@@ -1786,6 +1847,7 @@ function vistaCocina() {
           ${v.porPieza ? `<small>por pieza · se admiten mitades</small>`
                        : (i.presentacion ? `<small>${esc(i.presentacion)}</small>` : '')}</div>
         <div class="coc-cap">
+          ${verMio ? cocCajaMio(i.insumo_id) : ''}
           ${cocAyerInfo ? `<div class="coc-ayer${ayer === undefined ? ' vacio' : ''}"
             title="Contado el ${esc(cocAyerDia(i.insumo_id))}">${
             ayer === undefined ? '—'
@@ -2595,6 +2657,8 @@ let barLista  = [];
 /* Lo que llego a la barra en la jornada. Solo se llena para ADMIN/ENCARGADO:
    el servidor no se lo entrega a un OPERATIVO. Ver barCajaMio(). */
 let barLlegadas = {};
+/* Lo mismo para cocina (Arturo, 8 nov: "agregalo a cocina tambien"). */
+let cocLlegadas = {};
 let barModo   = 'SEMANAL';
 let barHechos = {};   // insumo_id -> {stock, copeo}
 let barVista  = 'capturar';  // 'capturar' | 'historial'
@@ -2656,13 +2720,7 @@ async function barraArrancar() {
      cuadrar: "mande 6 de bodega, Kevin conto 5 cerradas y abrio 1, son 6".
      El servidor solo se lo da a ADMIN/ENCARGADO — con el PIN de Kevin ni
      siquiera contesta — asi que no hace falta esconder nada en la pantalla. */
-  barLlegadas = {};
-  if (esAdmin()) {
-    try {
-      const ll = await rpc('inv_app_llegadas_jornada', { p_ubicacion: 'BARRA' }) || [];
-      for (const x of ll) barLlegadas[x.insumo_id] = x;
-    } catch (e) { /* si falla, la pantalla sigue igual: es un apoyo, no el conteo */ }
-  }
+  barLlegadas = await traerLlegadas('BARRA');
 
   /* Lo guardado vuelve a la pantalla tal como se tecleó: las cerradas en
      piezas y el copeo en mililitros. */
@@ -3543,6 +3601,30 @@ const buscaExi = (id, ubi) => existencias.find(e => e.insumo_id === id && e.ubic
 
    Y el candado de verdad esta en el SERVIDOR (inv_app_llegadas_jornada exige
    ADMIN). Esconderlo solo aqui seria cosmetico. */
+/* Lo que llego a una ubicacion en la jornada. El servidor solo se lo entrega
+   a ADMIN, asi que para los demas el mapa se queda vacio y no se pinta nada. */
+async function traerLlegadas(ubic) {
+  if (!esAdmin()) return {};
+  try {
+    const ll = await rpc('inv_app_llegadas_jornada', { p_ubicacion: ubic }) || [];
+    const m = {};
+    for (const x of ll) m[x.insumo_id] = x;
+    return m;
+  } catch (e) { return {}; }   // es un apoyo, no el conteo
+}
+
+function cocCajaMio(id) {
+  const e  = buscaExi(id, 'COCINA');
+  const to = (Number(e.piezas_cerradas) || 0) + (Number(e.abierto_base) || 0);
+  const l  = cocLlegadas[id];
+  const n  = l ? (Number(l.piezas) || 0) : 0;
+  const dice = ['El sistema trae ' + num(to) + ' en cocina'];
+  if (n) dice.push('. Hoy ' + (n === 1 ? 'llego' : 'llegaron') + ' ' + n
+                   + (l.de_donde ? ' de ' + l.de_donde : ''));
+  return '<div class="coc-mio' + (to ? '' : ' vacio') + (n ? ' llego' : '')
+       + '" title="' + esc(dice.join(' ')) + '">' + (to ? num(to) : '—') + '</div>';
+}
+
 function barCajaMio(id) {
   const e  = buscaExi(id, 'BARRA');
   const pz = Number(e.piezas_cerradas) || 0;
