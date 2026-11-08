@@ -492,7 +492,7 @@ letter-spacing:.4px;text-transform:uppercase}
 /* La version que esta corriendo, visible en la pantalla. Se sube a mano en
    cada publicacion. Sirve para contestar en un segundo una pregunta que el
    1 nov costo media hora: "esto que estas viendo, ¿es lo nuevo o lo viejo?" */
-const VERSION_APP = 'v16';
+const VERSION_APP = 'v17';
 
 const SUPA_URL  = 'https://nkpzjnfazuqlbvctyqzg.supabase.co';
 const SUPA_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rcHpqbmZhenVxbGJ2Y3R5cXpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzMDI0MDQsImV4cCI6MjEwMzg3ODQwNH0.qdzwLK7v92SW5OoZN5RxeMxs5UHm87P_ECEB90UnHIQ';
@@ -1715,23 +1715,11 @@ function vistaCocina() {
       ${puedeMover()
         ? `<button class="btn-sec" onclick="histIr('COCINA', null)">📅 Historial</button>` : ''}
     </div>
-    <div class="caja-info" style="margin-bottom:10px">
-      Anota <b>cuánto hay</b> de cada cosa, en la unidad que dice a la derecha.
-      Lo que no cuentes no se toca. Cada dato se guarda solo al salir del campo.
-      ${cocAyerInfo ? (cocAyerInfo.mezclado
-        ? `<br><br>El recuadro de la izquierda es <b>la última vez que se contó
-           cada cosa</b>, y no todo es del mismo día: hubo conteos a medias.
-           Si tocas el recuadro te dice de cuándo es ese número.`
-        : `<br><br>El recuadro de la izquierda es <b>lo que se contó
-           ${esc(cocAyerEtiqueta())}</b> (${esc(cocAyerInfo.fecha || '')}), solo para
-           verlo. El de la derecha es el de hoy.`)
-      /* Si no se dice, parece que la columna de ayer esta fallando. No falla:
-         es que este es el primer conteo y no hay contra que compararlo. Una
-         funcion que se esconde sola sin explicar se ve igual que una rota. */
-      : `<br><br>📅 <b>Éste es el primer conteo</b>, por eso todavía no aparece
-        la columna de <b>ayer</b>. En cuanto se cierre, el siguiente ya va a
-        traer al lado lo que se contó hoy.`}
-    </div>
+    <!-- Fuera el parrafo, igual que en barra (Arturo, 7 nov 2026). Chencho
+         recorre 174 renglones con el telefono en la mano; el texto le robaba
+         la primera pantalla entera y nunca lo leyo.
+         El encabezado de las columnas ya dice de que dia es cada una, y la
+         unidad va al lado de cada campo. -->
     <div id="zonaCoc">`;
 
   let avisoPuesto = false;
@@ -2958,29 +2946,14 @@ function vistaBarra() {
       ${puedeMover()
         ? `<button class="btn-sec" onclick="histIr('BARRA', null)">📅 Historial</button>` : ''}
     </div>
-    <div class="caja-info" style="margin-bottom:10px">
-      <b>Stock</b>: cuántas botellas cerradas hay, enteras.
-      <b>Copeo</b>: la que está destapada — si no hay destapada, déjalo vacío.
-      <br><br>🔎 <b>El copeo se pesa.</b> Pon la botella abierta en la báscula y
-      teclea <b>los gramos tal cual</b>, sin restarle nada: el sistema ya sabe
-      cuánto pesa el vidrio de cada botella y saca los mililitros solo. Debajo
-      del nombre te va a decir cuántos ml salieron, para que veas si cuadra.
-      <br>En las que todavía no tienen su peso capturado dice
-      <b>"en ml, sin peso todavía"</b>: ésas sí van a ojo, por ahora.
-      Cada dato se guarda solo al salir del campo.
-      ${barAyerInfo ? (barAyerInfo.mezclado
-        ? `<br><br>Los dos recuadros punteados son <b>la última vez que se contó
-           cada botella</b>, y no todo es del mismo día: hubo conteos a medias.
-           Si tocas el recuadro te dice de cuándo es ese número.`
-        : `<br><br>Los dos recuadros punteados de la izquierda son
-           <b>lo que se contó ${esc(barAyerEtiqueta())}</b>
-           (${esc(barAyerInfo.fecha || '')}), solo para verlos.`)
-      /* Si no se dice, parece que la columna de ayer esta fallando. No falla:
-         es que este es el primer conteo de barra y no hay contra que compararlo. */
-      : `<br><br>📅 <b>Éste es el primer conteo de barra</b>, por eso todavía no
-        aparecen las columnas de <b>ayer</b>. En cuanto se cierre, el siguiente
-        ya va a traer al lado lo que se contó hoy.`}
-    </div>
+    <!-- Aqui vivia un parrafo de ocho renglones explicando stock, copeo y la
+         bascula. Fuera, 7 nov 2026. Arturo: "quitale el texto, estorba, ni lo
+         lee". Y tenia razon: quien cuenta 153 botellas de pie en la barra no
+         lee instrucciones, las brinca — y mientras tanto le empujaba la lista
+         media pantalla hacia abajo, noche tras noche.
+         Lo que de verdad hacia falta ya esta en la pantalla sin gastar
+         espacio: el encabezado dice de que dia es cada columna, y debajo de
+         cada nombre sale "se pesa -> 539 ml" o "en ml, sin peso todavia". -->
     ${barAyerInfo ? `<div class="bar-cab2">
       <span></span><span>${esc(barAyerEtiqueta())}</span><span>hoy</span><span></span>
     </div>` : ''}
