@@ -229,6 +229,9 @@ font-variant-numeric:tabular-nums;padding:8px 4px}
 .bar-fila input[type=number]{-moz-appearance:textfield;appearance:textfield}
 .bar-nd{text-align:center;color:var(--dim);font-size:13px}
 .bar-eco{color:var(--green);font-weight:600;margin-left:4px}
+/* Lo que el sistema trae en barra. Solo lo ve quien rectifica (ADMIN/ENCARGADO),
+   nunca quien cuenta: ver barLoQueTrae(). */
+.bar-trae{display:block;color:var(--amber,#e0a300);font-size:11px;margin-top:2px}
 .bar-fila.con-ayer,.bar-cab.con-ayer{grid-template-columns:1fr 42px 56px 42px 56px 14px}
 .bar-cab2{display:grid;grid-template-columns:1fr 103px 103px 14px;gap:5px;
   padding:0 11px 2px;font-size:10px;color:var(--accent);text-align:center;
@@ -492,7 +495,7 @@ letter-spacing:.4px;text-transform:uppercase}
 /* La version que esta corriendo, visible en la pantalla. Se sube a mano en
    cada publicacion. Sirve para contestar en un segundo una pregunta que el
    1 nov costo media hora: "esto que estas viendo, ¿es lo nuevo o lo viejo?" */
-const VERSION_APP = 'v17';
+const VERSION_APP = 'v18';
 
 const SUPA_URL  = 'https://nkpzjnfazuqlbvctyqzg.supabase.co';
 const SUPA_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rcHpqbmZhenVxbGJ2Y3R5cXpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzMDI0MDQsImV4cCI6MjEwMzg3ODQwNH0.qdzwLK7v92SW5OoZN5RxeMxs5UHm87P_ECEB90UnHIQ';
@@ -2988,7 +2991,8 @@ function vistaBarra() {
                  ? 'la abierta <b>se pesa</b>'
                  : 'la abierta <b>en ml</b>, sin peso todavía'}<span
                  class="bar-eco" id="be_${i.insumo_id}">${ecoIni}</span></small>`
-            : (i.presentacion ? `<small>${esc(i.presentacion)}</small>` : '')}</div>
+            : (i.presentacion ? `<small>${esc(i.presentacion)}</small>` : '')}
+          ${barLoQueTrae(i.insumo_id)}</div>
         ${barAyerInfo ? `<div class="coc-ayer${
             ay && ay.stock !== null ? '' : ' vacio'}"
             title="Cerradas el ${esc(barAyerDia(i.insumo_id))}">${
@@ -3476,6 +3480,35 @@ function cabecera(e) {
   </div>`;
 }
 const buscaExi = (id, ubi) => existencias.find(e => e.insumo_id === id && e.ubicacion === ubi) || {};
+
+/* Lo que el sistema trae en BARRA, debajo de cada botella — SOLO para quien
+   rectifica.  (Arturo, 7 nov 2026: "yo quiero que ella de bodega pueda mandar
+   a barra las botellas y le aparezca sumadas".)
+
+   El conteo de barra es a ciegas A PROPOSITO: si el que cuenta ve el numero
+   esperado, lo copia en vez de ir al anaquel, y el conteo deja de servir para
+   nada. Pero lo ciego es para QUIEN CUENTA, no para quien rectifica — y Carla
+   es la que recibe la mercancia, la reparte y la cuadra. Sin esta linea
+   traspasaba una botella de bodega a barra y no tenia donde verla llegar, asi
+   que parecia que el traspaso no habia funcionado. Funcionaba: no habia donde
+   mirarlo.
+
+   Kevin y Chencho son OPERATIVO y NO ven esta linea: siguen contando a ciegas.
+   El mismo reparto que ya usa la app para el boton de traspaso. */
+function barLoQueTrae(id) {
+  if (!puedeMover()) return '';
+  const e = buscaExi(id, 'BARRA');
+  if (!e.insumo_id) return '';
+  const pz = Number(e.piezas_cerradas) || 0;
+  const ab = Number(e.abierto_base) || 0;
+  if (!pz && !ab) return '';
+
+  const partes = [];
+  if (pz) partes.push('<b>' + pz + '</b> ' + palabraEnteros(e.unidad_base, pz));
+  if (ab) partes.push('<b>' + num(ab) + '</b> '
+                      + (e.unidad_base === 'ML' ? 'ml abiertos' : 'sueltos'));
+  return '<small class="bar-trae">📦 en barra hay ' + partes.join(' + ') + '</small>';
+}
 
 function abrirEntrada(id, ubi) {
   const e = buscaExi(id, ubi);
