@@ -181,6 +181,10 @@ main{padding:14px;max-width:1000px;margin:0 auto}
 .coc-fila:last-child{border-bottom:none}
 .coc-nom{font-size:14px;line-height:1.3;min-width:0}
 .coc-nom small{display:block;color:var(--dim);font-size:10.5px;margin-top:2px}
+/* Con la columna de quien rectifica el renglon va apretado: el subtitulo se
+   queda en una sola linea y, si no cabe, se corta — antes la flecha y los
+   mililitros se brincaban solos y cada fila crecia dos renglones. */
+.coc-nom small.una-linea{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .coc-cap{display:flex;align-items:center;gap:6px}
 .coc-cap .inp-chico{width:72px;text-align:center;font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
 .coc-cap .inp-chico.coc-ok{border-color:rgba(var(--green-sv),.5);background:rgba(var(--green-sv),.07)}
@@ -236,13 +240,19 @@ font-variant-numeric:tabular-nums;padding:8px 4px}
 /* El recuadro de quien rectifica: lo que el sistema trae en barra, o sea lo
    que Carla mando y sabe que tiene. Solo sale para ADMIN/ENCARGADO; con el
    PIN de Kevin el servidor ni siquiera entrega el dato. Ver barCajaMio(). */
-.bar-fila.con-mio,.bar-cab.con-mio{grid-template-columns:1fr 40px 42px 56px 14px}
+/* Los recuadros LLENAN su carril. Traian ancho fijo (62px) metido en carriles
+   de 42px, asi que se salian y le comian el espacio al nombre: con la columna
+   de mas, el nombre quedo en dos palabras por renglon y la fila crecio al
+   triple. Esto estaba desde antes; la columna nueva solo lo destapo. */
+.bar-fila .coc-ayer,.bar-fila .coc-mio{width:100%;padding-left:0;padding-right:0}
+.bar-fila.con-mio,.bar-cab.con-mio{grid-template-columns:1fr 32px 38px 48px 14px;gap:4px}
 .bar-fila.con-mio.con-ayer,.bar-cab.con-mio.con-ayer{
-  grid-template-columns:1fr 40px 42px 56px 42px 56px 14px}
-.bar-cab2.con-mio{grid-template-columns:1fr 40px 103px 103px 14px}
-.coc-mio{width:40px;text-align:center;font-size:14px;font-weight:700;
+  grid-template-columns:1fr 32px 36px 46px 38px 48px 14px;gap:4px}
+.bar-cab2.con-mio{grid-template-columns:1fr 32px 86px 90px 14px;gap:4px}
+.bar-fila.con-mio .coc-ayer,.bar-fila.con-mio .inp-chico{font-size:13px;padding-top:8px;padding-bottom:8px}
+.coc-mio{text-align:center;font-size:13px;font-weight:700;
   font-variant-numeric:tabular-nums;color:var(--amber,#e0a300);
-  border:1px solid rgba(224,163,0,.35);border-radius:7px;padding:5px 0;
+  border:1px solid rgba(224,163,0,.35);border-radius:7px;padding:8px 0;
   background:rgba(224,163,0,.07)}
 .coc-mio.vacio{color:var(--dim);border-color:var(--bd);background:none;font-weight:400}
 .coc-mio.llego{box-shadow:0 0 0 2px rgba(224,163,0,.25)}
@@ -508,7 +518,7 @@ letter-spacing:.4px;text-transform:uppercase}
 /* La version que esta corriendo, visible en la pantalla. Se sube a mano en
    cada publicacion. Sirve para contestar en un segundo una pregunta que el
    1 nov costo media hora: "esto que estas viendo, ¿es lo nuevo o lo viejo?" */
-const VERSION_APP = 'v19';
+const VERSION_APP = 'v20';
 
 const SUPA_URL  = 'https://nkpzjnfazuqlbvctyqzg.supabase.co';
 const SUPA_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rcHpqbmZhenVxbGJ2Y3R5cXpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzMDI0MDQsImV4cCI6MjEwMzg3ODQwNH0.qdzwLK7v92SW5OoZN5RxeMxs5UHm87P_ECEB90UnHIQ';
@@ -2990,10 +3000,10 @@ function vistaBarra() {
          espacio: el encabezado dice de que dia es cada columna, y debajo de
          cada nombre sale "se pesa -> 539 ml" o "en ml, sin peso todavia". -->
     ${barAyerInfo ? `<div class="bar-cab2${verMio ? ' con-mio' : ''}">
-      <span></span>${verMio ? '<span>mío</span>' : ''}<span>${esc(barAyerEtiqueta())}</span><span>hoy</span><span></span>
+      <span></span>${verMio ? '<span></span>' : ''}<span>${esc(barAyerEtiqueta())}</span><span>hoy</span><span></span>
     </div>` : ''}
     <div class="bar-cab${verMio ? ' con-mio' : ''}${barAyerInfo ? ' con-ayer' : ''}">
-      <span></span>${verMio ? '<span>yo</span>' : ''}${barAyerInfo ? '<span>stock</span><span>copeo</span>' : ''}
+      <span></span>${verMio ? '<span>mío</span>' : ''}${barAyerInfo ? '<span>stock</span><span>copeo</span>' : ''}
       <span>Stock</span><span>Copeo</span><span></span>
     </div>
     <div id="zonaBar">`;
@@ -3019,9 +3029,9 @@ function vistaBarra() {
       h += `<div class="bar-fila${verMio ? ' con-mio' : ''}${barAyerInfo ? ' con-ayer' : ''}" data-n="${esc((i.nombre||'').toLowerCase())}">
         <div class="coc-nom">${esc(i.nombre)}
           ${v.mide === 'ml'
-            ? `<small>botella de ${v.cap} ml · ${pesa
-                 ? 'la abierta <b>se pesa</b>'
-                 : 'la abierta <b>en ml</b>, sin peso todavía'}<span
+            ? `<small${verMio ? ' class="una-linea"' : ''}>${verMio ? '' : 'botella de ' + v.cap + ' ml · '}${pesa
+                 ? (verMio ? '<b>se pesa</b>' : 'la abierta <b>se pesa</b>')
+                 : (verMio ? '<b>en ml</b>' : 'la abierta <b>en ml</b>, sin peso todavía')}<span
                  class="bar-eco" id="be_${i.insumo_id}">${ecoIni}</span></small>`
             : (i.presentacion ? `<small>${esc(i.presentacion)}</small>` : '')}</div>
         ${verMio ? barCajaMio(i.insumo_id) : ''}
