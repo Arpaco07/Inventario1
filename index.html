@@ -492,7 +492,7 @@ letter-spacing:.4px;text-transform:uppercase}
 /* La version que esta corriendo, visible en la pantalla. Se sube a mano en
    cada publicacion. Sirve para contestar en un segundo una pregunta que el
    1 nov costo media hora: "esto que estas viendo, ¿es lo nuevo o lo viejo?" */
-const VERSION_APP = 'v15';
+const VERSION_APP = 'v16';
 
 const SUPA_URL  = 'https://nkpzjnfazuqlbvctyqzg.supabase.co';
 const SUPA_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rcHpqbmZhenVxbGJ2Y3R5cXpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzMDI0MDQsImV4cCI6MjEwMzg3ODQwNH0.qdzwLK7v92SW5OoZN5RxeMxs5UHm87P_ECEB90UnHIQ';
@@ -3589,16 +3589,35 @@ function abrirTraspaso(idPre, oriPre) {
   const act = catalogo.filter(i => i.activo);
   if (!act.length) return avisar('Primero da de alta productos', true);
   const sel = (v, pre) => v === pre ? ' selected' : '';
-  /* Si se abrio desde una tarjeta, el destino arranca en la PRIMERA ubicacion
-     distinta al origen: asi no queda "de Bodega a Bodega", que es el error
-     que mas se comete con los dos menus puestos en lo mismo. */
-  const desPre = oriPre ? (UBIS.find(u => u.clave !== oriPre) || {}).clave : null;
+
+  /* 🔴 EL DESTINO NO VIENE ELEGIDO, A PROPOSITO.  (Carla, 7 nov 2026)
+
+     Antes arrancaba en "la primera ubicacion distinta al origen". Con el orden
+     de las ubicaciones (Barra 1, Piso 2, Bodega 3, Cocina 4, Casa 5) eso es
+     SIEMPRE Barra cuando se sale de bodega. Resultado: los 20 traspasos que
+     salieron de bodega entre el 3 y el 7 de noviembre cayeron TODOS en barra,
+     de dos personas distintas y sin una sola excepcion.
+
+     Carla escogia Piso, la app mandaba Barra, el servidor contestaba 200 y
+     nadie se enteraba: la bodega se descontaba, en piso no aparecia nada, y
+     llevaban dias cuadrandolo a mano.
+
+     La leccion: un destino que hay que escoger NO puede venir escogido, y
+     menos con un valor que parece correcto. Un default plausible no es una
+     comodidad, es una respuesta que nadie dio. Lo mismo vale para el origen
+     cuando se abre desde el boton de arriba: antes se quedaba en la primera
+     de la lista sin que nadie la eligiera. */
+  const PIDE = '<option value="">— escoge —</option>';
   modalAccion('↗ Salida / traspaso',
     `<label class="lbl">Producto</label>
-     <select class="inp" id="aProd">${act.map(i => `<option value="${i.id}"${sel(i.id, idPre)}>${esc(i.nombre)}</option>`).join('')}</select>
+     <select class="inp" id="aProd" onchange="traspasoResumen()">${act.map(i => `<option value="${i.id}"${sel(i.id, idPre)}>${esc(i.nombre)}</option>`).join('')}</select>
      <div class="fila2">
-       <div><label class="lbl">Sale de</label><select class="inp" id="aOri">${UBIS.map(u => `<option value="${u.clave}"${sel(u.clave, oriPre)}>${esc(u.nombre)}</option>`).join('')}</select></div>
-       <div><label class="lbl">Entra a</label><select class="inp" id="aDes">${UBIS.map(u => `<option value="${u.clave}"${sel(u.clave, desPre)}>${esc(u.nombre)}</option>`).join('')}</select></div>
+       <div><label class="lbl">Sale de</label><select class="inp" id="aOri" onchange="traspasoResumen()">${oriPre ? '' : PIDE}${UBIS.map(u => `<option value="${u.clave}"${sel(u.clave, oriPre)}>${esc(u.nombre)}</option>`).join('')}</select></div>
+       <div><label class="lbl">Entra a</label><select class="inp" id="aDes" onchange="traspasoResumen()">${PIDE}${UBIS.map(u => `<option value="${u.clave}">${esc(u.nombre)}</option>`).join('')}</select></div>
+     </div>
+     <div id="aResumen" class="caja-info" style="font-size:12px">
+       Escoge a dónde entra. No se elige solo, para que nunca se vaya a un
+       lugar que nadie pidió.
      </div>
      <label class="lbl">Piezas o botellas cerradas</label>
      <input class="inp" type="number" id="aPz" placeholder="0" min="0">
@@ -3616,6 +3635,10 @@ function abrirTraspaso(idPre, oriPre) {
     'Traspasar', async () => {
       const id  = Number(document.getElementById('aProd').value);
       const ori = document.getElementById('aOri').value, des = document.getElementById('aDes').value;
+      /* Sin destino no se mueve nada. Antes esto no podia pasar porque venia
+         puesto solo — y justo por eso se iba a donde nadie habia dicho. */
+      if (!ori) return avisar('Escoge de dónde sale.', true);
+      if (!des) return avisar('Escoge a dónde entra. No se elige solo.', true);
       if (ori === des) return avisar('El origen y el destino son el mismo', true);
       const pz = Number(document.getElementById('aPz').value || 0);
       const ct = Number(document.getElementById('aCant').value || 0);
@@ -3641,10 +3664,58 @@ function abrirTraspaso(idPre, oriPre) {
           await rpc('inv_app_abrir_botella', { p_insumo_id: id, p_ubicacion: des });
         }
         cerrar('mAccion'); await cargarDatos(); pintar();
-        avisar(copeo ? 'Traspaso hecho y una destapada ✓' : 'Traspaso hecho ✓');
+        /* El aviso DICE A DONDE FUE. El viejo decia solo "Traspaso hecho ✓",
+           y por eso el destino equivocado paso desapercibido dias: la pantalla
+           confirmaba sin decir qué había confirmado. */
+        const nOri = (UBIS.find(u => u.clave === ori) || {}).nombre || ori;
+        const nDes = (UBIS.find(u => u.clave === des) || {}).nombre || des;
+        const cuanto = pz ? (pz + ' ' + palabraEnteros(prod.unidad_base, pz)) : num(ct);
+        avisar((prod.nombre || 'Producto') + ': ' + cuanto + ', '
+             + nOri + ' → ' + nDes + ' ✓'
+             + (copeo ? ' y una destapada' : ''));
       } catch (er) { avisar(er.message, true); }
       ocultarCargando();
     });
+}
+
+/* El renglon que se lee ANTES de apretar: de donde sale, a donde entra, y
+   cuanto hay en el origen. Esta es la red que faltaba. Con esto a la vista un
+   destino equivocado se ve en el momento, no tres dias despues cuadrando a
+   mano. (Carla, 7 nov 2026.) */
+function traspasoResumen() {
+  const z = document.getElementById('aResumen');
+  if (!z) return;
+  const id  = Number((document.getElementById('aProd') || {}).value || 0);
+  const ori = (document.getElementById('aOri')  || {}).value || '';
+  const des = (document.getElementById('aDes')  || {}).value || '';
+
+  if (!ori || !des) {
+    z.innerHTML = 'Escoge a dónde entra. No se elige solo, para que nunca se '
+                + 'vaya a un lugar que nadie pidió.';
+    return;
+  }
+  if (ori === des) {
+    z.innerHTML = '⚠️ <b>El origen y el destino son el mismo lugar.</b>';
+    return;
+  }
+
+  const nOri = (UBIS.find(u => u.clave === ori) || {}).nombre || ori;
+  const nDes = (UBIS.find(u => u.clave === des) || {}).nombre || des;
+  const e    = buscaExi(id, ori);
+
+  let hay;
+  if (!e.insumo_id) {
+    hay = ' ⚠️ Ojo: en ' + esc(nOri) + ' no hay existencia de esto.';
+  } else {
+    const pzs = Number(e.piezas_cerradas) || 0;
+    hay = ' En ' + esc(nOri) + ' hay <b>' + pzs + '</b> '
+        + palabraEnteros(e.unidad_base || 'PZA', pzs)
+        + (Number(e.abierto_base) > 0
+            ? ' + ' + num(e.abierto_base) + ' ' + palabraSueltos(e.unidad_base || 'PZA')
+            : '')
+        + '.';
+  }
+  z.innerHTML = 'Va de <b>' + esc(nOri) + '</b> a <b>' + esc(nDes) + '</b>.' + hay;
 }
 
 function abrirMinimo(id) {
