@@ -175,9 +175,17 @@ main{padding:14px;max-width:1000px;margin:0 auto}
 .coc-cab{display:flex;justify-content:flex-end;gap:6px;align-items:center;
   padding:0 13px 5px;font-size:10px;color:var(--dim);letter-spacing:.4px;
   text-transform:uppercase}
-/* El recuadro de quien rectifica, en cocina. Aqui la fila es flex, no rejilla,
-   asi que basta con meterlo y agregarle su rotulo al encabezado. */
-.coc-cab.con-mio span:first-child{width:40px;text-align:center}
+/* El recuadro de quien rectifica, en cocina. La fila es flex, no rejilla.
+   OJO: los rotulos del encabezado tienen que medir EXACTAMENTE lo que miden
+   los recuadros de abajo, o se descuadran — que es lo que paso al meter la
+   columna nueva: solo le di ancho al primero y los otros dos se recorrieron.
+   Las medidas salen de la fila:
+     coc-mio 40 · coc-ayer 62 · input 72 · (coc-u 24 + hueco 6 + palomita 16 = 46)
+   con el mismo hueco de 6px y el mismo padding de 13px arriba y abajo. */
+.coc-cab.con-mio span:nth-child(1){width:40px;text-align:center}
+.coc-cab.con-mio span:nth-child(2){width:62px;text-align:center}
+.coc-cab.con-mio span:nth-child(3){width:72px;text-align:center}
+.coc-cab.con-mio span:nth-child(4){width:46px}
 .coc-cab span:first-child{width:62px;text-align:center}
 .coc-cab span:nth-child(2){width:72px;text-align:center}
 .coc-cab span:last-child{width:46px}
@@ -532,7 +540,7 @@ letter-spacing:.4px;text-transform:uppercase}
 /* La version que esta corriendo, visible en la pantalla. Se sube a mano en
    cada publicacion. Sirve para contestar en un segundo una pregunta que el
    1 nov costo media hora: "esto que estas viendo, ¿es lo nuevo o lo viejo?" */
-const VERSION_APP = 'v22';
+const VERSION_APP = 'v23';
 
 const SUPA_URL  = 'https://nkpzjnfazuqlbvctyqzg.supabase.co';
 const SUPA_KEY  = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5rcHpqbmZhenVxbGJ2Y3R5cXpnIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzMDI0MDQsImV4cCI6MjEwMzg3ODQwNH0.qdzwLK7v92SW5OoZN5RxeMxs5UHm87P_ECEB90UnHIQ';
@@ -1844,7 +1852,7 @@ function vistaCocina() {
       const ayer = ayerD ? ayerD.v : undefined;
       h += `<div class="coc-fila" data-n="${esc((i.nombre||'').toLowerCase())}">
         <div class="coc-nom">${esc(i.nombre)}
-          ${v.porPieza ? `<small>por pieza · se admiten mitades</small>`
+          ${v.porPieza ? `<small>por pieza${verMio ? '' : ' · se admiten mitades'}</small>`
                        : (i.presentacion ? `<small>${esc(i.presentacion)}</small>` : '')}</div>
         <div class="coc-cap">
           ${verMio ? cocCajaMio(i.insumo_id) : ''}
